@@ -98,6 +98,8 @@ WHERE type = "transfer"
 
 See changelog in script header for full history.
 
+- **v1.6.2** - Multiline marker text normalization fix
+- **v1.6.1** - Bound text duplication fix, improved error messages
 - **v1.6.0** - Stale transfer detection & auto-rename
 - **v1.5.6** - Bidirectional conversion fixes
 - **v1.5.0** - Transfer numbering modes, bound text support
