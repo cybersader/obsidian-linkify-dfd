@@ -7,7 +7,7 @@ date modified: 2025-11-22T00:00:00-05:00
 /*
 ```js*/
 /*****************************************************************
- * Linkify DFD — v1.6.2  (2026-01-06)
+ * Linkify DFD — v1.6.3  (2026-01-07)
  * ---------------------------------------------------------------
  * COMPATIBILITY:
  *   - Tested with: Excalidraw 2.19.0
@@ -15,6 +15,10 @@ date modified: 2025-11-22T00:00:00-05:00
  *   - See .claude/research/excalidraw-dependency.md for API changes
  * ---------------------------------------------------------------
  * CHANGELOG:
+ *
+ * v1.6.3 (2026-01-07)
+ *   - Removed: TR-XXXX label feature (redundant - transfers already uniquely named)
+ *   - Simplified: Arrow customData no longer includes edgeId
  *
  * v1.6.2 (2026-01-06)
  *   - Fixed: Multiline text in markers now normalized (newlines → spaces)
@@ -1617,36 +1621,23 @@ async function ensureTransfer(arr) {
     clog(`  ✓ Created unidirectional transfer: ${transferWiki}`);
   }
 
-  // Clear marker and add metadata
-  const edgeId = "TR-" + rnd4().toUpperCase();
+  // Add metadata to arrow
   arr.customData = {
     ...(arr.customData || {}),
     dfd: {
       kind: "transfer",
-      edgeId,
       bidirectional: bidirectional && BIDIRECTIONAL_MODE !== "ignore_bidirectional",
       mode: BIDIRECTIONAL_MODE,
       directionSource: direction.directionSource
     }
   };
 
-  // Add label to straight arrows
-  try {
-    if (Array.isArray(arr.points) && arr.points.length === 2) {
-      const label = bidirectional && BIDIRECTIONAL_MODE !== "ignore_bidirectional" ? `${edgeId}⟷` : edgeId;
-      ea.addLabelToLine(arr.id, label);
-      clog(`  ✓ Added label: ${label}`);
-    }
-  } catch(e) {
-    clog(`  ✗ Failed to add label: ${e.message}`);
-  }
-
   safeCopyToEA([arr]);
 }
 
 /* ---------- main execution ---------- */
 (async () => {
-  clog("\n🚀 Starting Linkify DFD v1.6.2");
+  clog("\n🚀 Starting Linkify DFD v1.6.3");
   clog(`📋 Explicit markers required: ${REQUIRE_EXPLICIT_MARKER}`);
   clog(`📋 Smart custom name matching: ${SMART_CUSTOM_NAME_MATCHING}`);
   clog(`📋 Search all subfolders: ${SEARCH_ALL_SUBFOLDERS}`);
@@ -1674,8 +1665,8 @@ async function ensureTransfer(arr) {
   }
 
   await ea.addElementsToView(false, true, true, true);
-  clog("\n✅ Linkify DFD v1.6.2: finished");
-  note("Linkify DFD v1.6.2: finished");
+  clog("\n✅ Linkify DFD v1.6.3: finished");
+  note("Linkify DFD v1.6.3: finished");
 
   // Flush debug log to file
   await flushDebugLog();
