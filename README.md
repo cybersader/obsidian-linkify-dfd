@@ -1,113 +1,597 @@
-# Linkify DFD - Excalidraw Automate Script
+# Data Flow Diagram System for Obsidian
 
-An [Excalidraw Automate](https://zsviczian.github.io/obsidian-excalidraw-plugin/) script that transforms visual Data Flow Diagrams into a queryable markdown-based graph database in Obsidian.
+> A graph-based approach to mapping, managing, and analyzing organizational data flows using Obsidian and Excalidraw.
 
-## What It Does
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Obsidian](https://img.shields.io/badge/Obsidian-7C3AED?logo=obsidian&logoColor=white)](https://obsidian.md)
+[![Excalidraw](https://img.shields.io/badge/Excalidraw-6965DB?logo=excalidraw&logoColor=white)](https://excalidraw.com)
 
-- **Converts diagram shapes** into linked markdown notes (Assets, Entities)
-- **Converts arrows** into Transfer notes that track data flow relationships
-- **Maintains bidirectional links** via `dfd_in` and `dfd_out` arrays
-- **Supports bidirectional arrows** with paired transfer files
-- **Auto-detects and fixes** stale transfers when endpoints change
+## Overview
 
-## Installation
+The DFD (Data Flow Diagram) System transforms visual diagrams into queryable knowledge graphs. Unlike traditional diagramming tools, this system treats diagram elements as first-class database objects with relationships, metadata, and version control.
 
-1. Install [Obsidian](https://obsidian.md/) and [Excalidraw plugin](https://github.com/zsviczian/obsidian-excalidraw-plugin)
-2. Copy `Linkify DFD v1.6.md` to your vault's `Excalidraw/Scripts/` folder
-3. Open an Excalidraw diagram
-4. Run via Command Palette: `Excalidraw: Run Excalidraw Automate script`
+### Key Innovation
+
+**Bidirectional Workflow**: Diagrams generate structured data → Data enables analysis and reporting → Analysis informs diagram updates.
+
+```
+Visual Diagrams (Excalidraw)
+         ↓
+   Automation Script
+         ↓
+Graph Database (Markdown)
+         ↓
+Analysis & Reporting (Dataview, CSV)
+```
+
+---
+
+## Features
+
+### Core Capabilities
+
+- ✅ **Graph-Based Model**: Assets, entities, and transfers as nodes and edges
+- ✅ **Smart Matching**: Reuses existing pages instead of creating duplicates
+- ✅ **Bidirectional Support**: Single transfer or dual transfer modes for ↔ arrows
+- ✅ **Transfer Numbering**: Multiple transfers between same objects (prefix/suffix/random modes)
+- ✅ **Configuration System**: Define custom object types, markers, and defaults
+- ✅ **Direction Detection**: Arrowhead-based or binding-based flow direction
+- ✅ **Explicit Markers**: Optional strict mode - only process marked elements
+- ✅ **Version Control**: Plain text markdown files work with Git
+- ✅ **Export Ready**: CSV export for DLP tools, GRC platforms, audits
+
+### Use Cases
+
+- **Data Governance**: Map data flows for GDPR, SOC 2, HIPAA compliance
+- **Vendor Risk Management**: Track which vendors receive which data
+- **Incident Response**: Quickly identify downstream impact of breaches
+- **Shadow IT Discovery**: Compare diagrams against DLP tool detections
+- **Internal Audits**: Document data flows for audit trails
+- **DLP Policy Management**: Export allow-lists to tools like Cyberhaven
+
+---
 
 ## Quick Start
 
-1. Draw rectangles for your systems/assets
-2. Add text markers: `asset=Customer Database` or `entity=User`
-3. Connect with arrows
-4. Add `transfer` marker to arrows (Ctrl+K on arrow, type `transfer`)
-5. Run the script
+### Prerequisites
 
-## Generated Structure
+- [Obsidian](https://obsidian.md) desktop app (v1.4.0+)
+- [Excalidraw Plugin](https://github.com/zsviczian/obsidian-excalidraw-plugin) for Obsidian
+- [Excalidraw Automate](https://github.com/zsviczian/obsidian-excalidraw-plugin) (included with Excalidraw plugin)
 
-```
-DFD Objects Database/
-├── Assets/
-│   ├── customer-database.md
-│   └── analytics-system.md
-├── Entities/
-│   └── user.md
-└── Transfers/
-    └── transfer_customer-database_to_analytics-system.md
-```
+### Installation
 
-## Configuration
+1. **Clone or download this repository**:
+   ```bash
+   git clone https://github.com/yourusername/dfd-system.git
+   cd dfd-system
+   ```
 
-Edit settings at the top of the script:
+2. **Open in Obsidian**:
+   - Launch Obsidian → Open folder as vault → Select `dfd-system` folder
 
-```javascript
-const DEBUG = true;                              // Console logging
-const REQUIRE_EXPLICIT_MARKER = true;            // Only process marked elements
-const DB_FOLDER_NAME = "DFD Objects Database";   // Output folder
-const BIDIRECTIONAL_MODE = "dual_transfers";     // or "single_bidirectional"
-const TRANSFER_NUMBERING_MODE = "random";        // "prefix" | "suffix" | "random"
-```
+3. **Install Excalidraw plugin**:
+   - Settings → Community plugins → Browse → Search "Excalidraw"
+   - Install and enable
 
-## Markers
+4. **Verify installation**:
+   - Open `Data Flow Diagrams/Example - Simple System.excalidraw`
+   - Should render diagram with example assets
 
-| Marker | Creates |
-|--------|---------|
-| `asset=Name` | Asset note in Assets/ |
-| `entity=Name` | Entity note in Entities/ |
-| `transfer` | Transfer note linking connected shapes |
+### Creating Your First Diagram
 
-## Bidirectional Modes
+1. **Create a new diagram**:
+   - Create file: `Data Flow Diagrams/My First Diagram.excalidraw`
+   - Or use Excalidraw.com and import later
 
-- **`single_bidirectional`**: One transfer file with `direction: bidirectional`
-- **`dual_transfers`**: Two files (`_forward` and `_reverse`) with `paired_transfer` property
+2. **Add shapes**:
+   - Rectangle (`#2`) = Asset (system, app, database)
+   - Circle (`#4`) = Entity (person, vendor, data subject)
+   - Arrow (`#5`) = Transfer (data flow)
 
-## Frontmatter Schema
+3. **Add markers**:
+   - Double-click shape → Add text: `asset=Customer Database`
+   - Double-click another → Add text: `asset=Analytics Platform`
+   - Draw arrow between them → Add text: `transfer`
 
-**Assets/Entities:**
+4. **Run the script**:
+   - Open diagram in Obsidian
+   - Command palette (Ctrl/Cmd+P) → "Excalidraw: Run Excalidraw Automate script"
+   - Select: `Linkify DFD v1.5`
+   - Wait for completion notice
+
+5. **Verify results**:
+   - Check `DFD Objects Database/Assets/` for new files
+   - Check `DFD Objects Database/Transfers/` for transfer page
+   - Diagram shapes should now have wikilinks
+
+---
+
+## System Architecture
+
+### Data Model
+
+**Three Object Types**:
+
+| Type | Description | Storage | Example |
+|------|-------------|---------|---------|
+| **Assets** | Systems, apps, storage | `Assets/` | `crm-system.md` |
+| **Entities** | People, vendors, subjects | `Entities/` | `hr-team.md` |
+| **Transfers** | Data flows between objects | `Transfers/` | `transfer_crm_to_analytics.md` |
+
+**Assets/Entities** (Nodes):
 ```yaml
+---
 schema: dfd-asset-v1
 type: asset
 name: customer-database
-dfd_out: ["[[transfer_customer-database_to_analytics]]"]
-dfd_in: ["[[transfer_user_to_customer-database]]"]
-source_drawings: ["[[My Diagram]]"]
+created: 2025-11-24T12:00:00Z
+dfd_out:
+  - "[[transfer_customer-database_to_analytics]]"
+dfd_in:
+  - "[[transfer_website_to_customer-database]]"
+---
 ```
 
-**Transfers:**
+**Transfers** (Edges):
 ```yaml
+---
 schema: dfd-transfer-v1
 type: transfer
 object_a: "[[customer-database]]"
-object_b: "[[analytics-system]]"
+object_b: "[[analytics-platform]]"
+source_drawing: "[[My First Diagram]]"
+direction_source: end_arrowhead
 from: "[[customer-database]]"
-to: "[[analytics-system]]"
-source_drawing: "[[My Diagram]]"
+to: "[[analytics-platform]]"
+---
 ```
 
-## Querying with Dataview
+### Why This Model?
+
+**Assets/Entities**:
+- Store lists of relationships (`dfd_out`, `dfd_in`)
+- Have independent metadata (owner, classification)
+- Exist across multiple diagrams
+
+**Transfers**:
+- Store relationship details (`from`, `to`, `direction_source`)
+- Have context metadata (frequency, data types)
+- Diagram-specific (tracked via `source_drawing`)
+
+**Benefits**:
+- Query: "Show all systems sending data to X" → Check X's `dfd_in`
+- Query: "Show high-risk transfers" → Filter transfer pages
+- Navigate: Asset → Transfer → Destination Asset
+
+---
+
+## Documentation
+
+### User Guides
+
+- [Data Flow Diagram Procedure (Data Stewards)](Data%20Flow%20Diagram%20Procedure%20(Data%20Stewards)/Data%20Flow%20Diagram%20Procedure%20(Data%20Stewards).md) - Step-by-step guide for data stewards
+- [Data Flow Discovery Engagement Job Aid](Data%20Flow%20Discovery%20Engagement%20Job%20Aid/Data%20Flow%20Discovery%20Engagement%20Job%20Aid.md) - Facilitation guide for discovery sessions
+- [Data Flow Audit Procedure](Data%20Flow%20Audit%20Procedure/Data%20Flow%20Audit%20Procedure.md) - Technical audit process
+
+### Technical Documentation
+
+- [DFD System Architecture](DFD%20System%20Architecture.md) - High-level design, data model, algorithms
+- [DFD Developer Reference](DFD%20Developer%20Reference.md) - API reference, extension points, debugging
+- [DFD v1.5 Testing Guide](DFD%20v1.5%20Testing%20Guide.md) - Test scenarios and validation
+
+### Scripts
+
+**Main Script**:
+- [Linkify DFD v1.6](Excalidraw/Scripts/Linkify%20DFD%20v1.6.md) - Main automation script (Excalidraw Automate)
+
+**Helper Scripts** (v1.7):
+- [Mark All Arrows](Excalidraw/Scripts/Mark%20All%20Arrows.md) - Bulk add `transfer` marker to unmarked arrows
+- [Clear All DFD Links](Excalidraw/Scripts/Clear%20All%20DFD%20Links.md) - Reset diagram by removing all wikilinks and markers
+- [Validate DFD Diagram](Excalidraw/Scripts/Validate%20DFD%20Diagram.md) - Pre-flight checks before running Linkify
+
+**Cleanup Script**:
+- [Delete DFD Transfers](Excalidraw/Scripts/Delete%20DFD%20Transfers.md) - Bulk cleanup for testing
+
+---
+
+## Configuration
+
+### Basic Configuration
+
+Edit `Linkify DFD v1.5.md` (lines 21-59):
+
+```javascript
+// Debug mode
+const DEBUG = true;                              // Enable logging
+
+// Element processing
+const REQUIRE_EXPLICIT_MARKER = true;            // Only process marked elements
+
+// Smart matching
+const SMART_CUSTOM_NAME_MATCHING = true;         // Reuse existing pages
+const SEARCH_ALL_SUBFOLDERS = true;              // Search across folders
+
+// Storage
+const DB_PLACEMENT = "db_folder";                // Where to store pages
+const DB_FOLDER_NAME = "DFD Objects Database";   // Database folder name
+
+// Transfer numbering
+const TRANSFER_NUMBERING_MODE = "prefix";        // "prefix" | "suffix" | "random"
+
+// Direction detection
+const DIRECTION_DETERMINATION = "arrowhead_priority";  // Use arrowheads first
+const BIDIRECTIONAL_MODE = "single_bidirectional";     // How to handle ↔ arrows
+```
+
+### Custom Object Types
+
+Create configuration files in `DFD Object Configuration/`:
+
+**Example**: `DFD Object Configuration/Asset - Website.md`
+
+```yaml
+---
+DFD__KIND: asset
+DFD__MARKER: website
+DFD__SUBFOLDER: Assets
+
+schema: dfd-asset-website-v1
+type: asset
+category: website
+data_classification: Restricted
+---
+
+## Website Asset
+[Custom body content for all website assets]
+```
+
+**Usage in diagram**: Add text to shape: `website=Customer Portal`
+
+---
+
+## Examples
+
+### Example 1: Simple Data Flow
+
+**Diagram**: Member → Website → Database
+
+**Markers**:
+- Circle: `entity=Member`
+- Rectangle: `asset=Website`
+- Rectangle: `asset=Database`
+- Arrow 1: `transfer` (Member → Website)
+- Arrow 2: `transfer` (Website → Database)
+
+**Generated Files**:
+```
+DFD Objects Database/
+├── Entities/
+│   └── member.md
+├── Assets/
+│   ├── website.md
+│   └── database.md
+└── Transfers/
+    ├── transfer_member_to_website.md
+    └── transfer_website_to_database.md
+```
+
+**Relationships**:
+- `member.md`: `dfd_out: ["[[transfer_member_to_website]]"]`
+- `website.md`: `dfd_in: ["[[transfer_member_to_website]]"]`, `dfd_out: ["[[transfer_website_to_database]]"]`
+- `database.md`: `dfd_in: ["[[transfer_website_to_database]]"]`
+
+### Example 2: Bidirectional Flow
+
+**Diagram**: System A ↔ System B (double-headed arrow)
+
+**Configuration**: `BIDIRECTIONAL_MODE = "single_bidirectional"`
+
+**Generated**:
+- `transfer_a_to_b.md` with:
+  - `direction_source: bidirectional`
+  - `from: ["[[a]]", "[[b]]"]`
+  - `to: ["[[a]]", "[[b]]"]`
+
+**Relationships**:
+- `a.md`: `dfd_out: ["[[transfer_a_to_b]]"]`, `dfd_in: ["[[transfer_a_to_b]]"]`
+- `b.md`: `dfd_out: ["[[transfer_a_to_b]]"]`, `dfd_in: ["[[transfer_a_to_b]]"]`
+
+### Example 3: Multiple Transfers
+
+**Diagram**: Three arrows from System A → System B
+
+**Configuration**: `TRANSFER_NUMBERING_MODE = "prefix"`
+
+**Generated**:
+```
+Transfers/
+├── transfer_a_to_b.md        (first transfer)
+├── transfer_2_a_to_b.md      (second transfer)
+└── transfer_3_a_to_b.md      (third transfer)
+```
+
+**Use Case**: Different data types or processes using same connection.
+
+---
+
+## Querying Data
+
+### Dataview Queries
+
+**Show all assets sending data to a specific system**:
 
 ```dataview
-TABLE object_a, object_b, source_drawing
-FROM "DFD Objects Database/Transfers"
-WHERE type = "transfer"
+LIST dfd_out
+FROM "DFD Objects Database/Assets"
+WHERE contains(dfd_out, [[target-system]])
 ```
 
-## Version History
+**Show all high-risk transfers**:
 
-See changelog in script header for full history.
+```dataview
+TABLE from, to, data_classification
+FROM "DFD Objects Database/Transfers"
+WHERE data_classification = "Restricted"
+```
 
-- **v1.6.2** - Multiline marker text normalization fix
-- **v1.6.1** - Bound text duplication fix, improved error messages
-- **v1.6.0** - Stale transfer detection & auto-rename
-- **v1.5.6** - Bidirectional conversion fixes
-- **v1.5.0** - Transfer numbering modes, bound text support
+**Show transfers created from specific diagram**:
 
-## License
+```dataview
+TABLE object_a, object_b, direction_source
+FROM "DFD Objects Database/Transfers"
+WHERE source_drawing = [[My Diagram]]
+```
 
-MIT
+### CSV Export (Obsidian Bases)
+
+1. Install [Bases](https://github.com/SkepticMystic/obsidian-bases) plugin
+2. Create view: Query `FROM "DFD Objects Database/Transfers"`
+3. Export to CSV for external tools (DLP, GRC, Excel)
+
+---
+
+## Workflow Integration
+
+### Data Governance Workflow
+
+1. **Initial Setup**: ISRM team creates base diagrams
+2. **Delegation**: Send diagrams to data stewards
+3. **Update**: Stewards add/update flows using criteria
+4. **Generation**: Run Linkify DFD script
+5. **Enrichment**: Fill in metadata (classifications, owners)
+6. **Analysis**: Query for compliance gaps, high-risk flows
+7. **Export**: CSV to DLP tools, GRC platforms
+
+### Vendor Risk Management
+
+1. Create entity pages for vendors
+2. Diagram transfers: Internal Assets → Vendor Entities
+3. Tag transfers: `vendor_due_diligence: true`
+4. Query: Show all vendor transfers with sensitive data
+5. Export for vendor assessment questionnaires
+
+### Incident Response
+
+1. Identify compromised system (Asset X)
+2. Navigate to Asset X page
+3. Check `dfd_out`: All downstream systems
+4. Follow transfer pages for data classification
+5. Generate impact report
+6. Notify downstream system owners
+
+---
+
+## Troubleshooting
+
+### Script Creates Duplicates
+
+**Issue**: `asset=Customer DB` creates new page even though `customer-db.md` exists
+
+**Solution**:
+```javascript
+const SMART_CUSTOM_NAME_MATCHING = true;  // Enable smart matching
+```
+
+### Arrows Not Creating Transfers
+
+**Issue**: Arrows don't generate transfer pages
+
+**Causes**:
+1. `REQUIRE_EXPLICIT_MARKER = true` but no `transfer` marker
+2. Arrow not bound to shapes (ends not attached)
+3. Connected shapes not classified as asset/entity
+
+**Solution**: Add `transfer` marker to arrow or disable strict mode
+
+### Wrong Direction Detected
+
+**Issue**: Transfer shows reversed direction
+
+**Solution**: Check arrowhead in Excalidraw or use:
+```javascript
+const DIRECTION_DETERMINATION = "binding_only";  // Ignore arrowheads
+```
+
+---
+
+## Helper Scripts
+
+Three utility scripts streamline the DFD workflow. All are run the same way as the main script:
+Command Palette → "Excalidraw: Run Excalidraw Automate script" → Select script
+
+### Mark All Arrows
+
+**Purpose**: Bulk add `transfer` marker to all unmarked arrows in the diagram.
+
+**When to use**:
+- Starting a new diagram with many arrows already drawn
+- Converting an existing diagram to use the DFD system
+- After importing a diagram from Excalidraw.com
+
+**Usage**:
+1. Open diagram in Excalidraw
+2. Run "Mark All Arrows" script
+3. All arrows without markers or links get `transfer` added
+4. Run "Linkify DFD" to create transfer files
+
+**Options** (edit script):
+```javascript
+const SKIP_LABELED = false;   // Skip arrows that have label text
+const DRY_RUN = false;        // Preview only, don't modify
+```
+
+### Clear All DFD Links
+
+**Purpose**: Remove all wikilinks and markers from diagram elements (reset to pre-Linkify state).
+
+**When to use**:
+- Starting over on a diagram
+- Debugging link issues
+- Before re-running Linkify with different settings
+
+**What it clears**:
+- Wikilinks (`[[asset-name]]`)
+- Markers (`asset=Name`, `entity=Name`, `transfer`)
+- Custom data (DFD metadata)
+
+**Usage**:
+1. Open diagram with existing DFD links
+2. Run "Clear All DFD Links" script
+3. All links removed from diagram elements
+4. Markdown files in database are NOT deleted
+
+**Options** (edit script):
+```javascript
+const CLEAR_MARKERS = true;      // Also clear marker text
+const CLEAR_CUSTOM_DATA = true;  // Clear DFD metadata
+const DRY_RUN = false;           // Preview only
+```
+
+### Validate DFD Diagram
+
+**Purpose**: Pre-flight checks before running Linkify - identifies common issues.
+
+**What it checks**:
+- **Disconnected arrows**: Arrows not snapped to any shapes
+- **Partially connected arrows**: Only one end snapped
+- **Unmarked shapes**: Shapes without `asset=` or `entity=` markers
+- **Unmarked arrows**: Arrows without `transfer` marker
+- **Duplicate names**: Multiple shapes with same custom name
+- **Empty markers**: Markers like `asset=` with no name
+
+**Usage**:
+1. After drawing diagram, run "Validate DFD Diagram"
+2. Check console for issues (Ctrl+Shift+I)
+3. Fix issues (snap arrows, add markers)
+4. Run validation again until clean
+5. Run "Linkify DFD"
+
+**Recommended workflow**:
+```
+Draw diagram → Validate → Fix issues → Mark All Arrows → Validate → Linkify DFD
+```
+
+---
 
 ## Contributing
 
-Issues and PRs welcome at [github.com/cybersader/obsidian-linkify-dfd](https://github.com/cybersader/obsidian-linkify-dfd)
+We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+### Development Setup
+
+1. Fork the repository
+2. Create feature branch: `git checkout -b feature/my-feature`
+3. Make changes with tests
+4. Update documentation
+5. Submit pull request
+
+### Reporting Issues
+
+- Use [GitHub Issues](https://github.com/yourusername/dfd-system/issues)
+- Include: Script version, Obsidian version, steps to reproduce
+- Attach: Console logs (with `DEBUG = true`), diagram screenshot
+
+### Roadmap
+
+See [GitHub Projects](https://github.com/yourusername/dfd-system/projects) for planned features.
+
+**Short-term (v1.6-2.0)**:
+- [ ] Configurable schemas from config files
+- [ ] Bulk delete with trash folder
+- [ ] Transfer link cleanup improvements
+- [ ] Validation warnings for unconnected assets
+
+**Medium-term (v2.x)**:
+- [ ] Bi-directional sync: Database → Diagram updates
+- [ ] CSV import: Generate diagrams from spreadsheets
+- [ ] Bases shape library: Searchable, filterable
+- [ ] Template diagrams for common patterns
+
+**Long-term (v3.x+)**:
+- [ ] Real-time collaboration
+- [ ] Risk scoring engine
+- [ ] Compliance framework mapping (NIST, ISO, SOC 2)
+- [ ] AI-assisted diagramming
+
+---
+
+## Version History
+
+- **v1.6.2** (2026-01-06): Multiline marker text normalization fix
+- **v1.6.1**: Bound text duplication fix, improved unbound arrow error messages
+- **v1.6.0**: Stale transfer detection, auto-rename when endpoints change
+- **v1.5.6**: Bidirectional-to-unidirectional conversion fixes
+- **v1.5.5**: Endpoint change detection, dfd_in/dfd_out cleanup
+- **v1.5.0** (2025-11-22): Transfer numbering modes, bound text support
+- **v1.4**: Explicit markers, smart custom name matching, existing link preservation
+- **v1.3.1**: Configuration system, custom object types
+- **v1.0**: Initial release
+
+**Helper Scripts** (v1.7 - 2026-01-06):
+- Mark All Arrows, Clear All DFD Links, Validate DFD Diagram
+
+See [CHANGELOG.md](CHANGELOG.md) for detailed version history.
+
+---
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+---
+
+## Acknowledgments
+
+- [Obsidian](https://obsidian.md) - Knowledge management platform
+- [Excalidraw](https://excalidraw.com) - Diagramming tool
+- [Zsolt Viczián](https://github.com/zsviczian) - Excalidraw Obsidian plugin author
+- Data governance community for feedback and use cases
+
+---
+
+## Support
+
+- **Documentation**: See [docs/](docs/) folder
+- **Community**: [GitHub Discussions](https://github.com/yourusername/dfd-system/discussions)
+- **Issues**: [GitHub Issues](https://github.com/yourusername/dfd-system/issues)
+
+---
+
+## Citation
+
+If you use this system in research or publications:
+
+```bibtex
+@software{dfd_system_2025,
+  author = {Your Name},
+  title = {Data Flow Diagram System for Obsidian},
+  year = {2025},
+  url = {https://github.com/yourusername/dfd-system},
+  version = {1.5}
+}
+```
+
+---
+
+**Made with ❤️ for the data governance community**
