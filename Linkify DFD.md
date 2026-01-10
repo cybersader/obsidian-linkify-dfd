@@ -7,7 +7,7 @@ date modified: 2025-11-22T00:00:00-05:00
 /*
 ```js*/
 /*****************************************************************
- * Linkify DFD — v1.7.4  (2026-01-09)
+ * Linkify DFD — v1.7.5  (2026-01-10)
  * ---------------------------------------------------------------
  * COMPATIBILITY:
  *   - Tested with: Excalidraw 2.19.0
@@ -15,6 +15,14 @@ date modified: 2025-11-22T00:00:00-05:00
  *   - See .claude/research/excalidraw-dependency.md for API changes
  * ---------------------------------------------------------------
  * CHANGELOG:
+ *
+ * v1.7.5 (2026-01-10)
+ *   - Added: TRANSFER_FUZZY_MATCH setting for cross-naming-scheme matching
+ *           false (default): Only match transfers using current naming scheme
+ *           true: Match any transfer with same endpoints, regardless of naming scheme
+ *   - Benefit: When transitioning between TRANSFER_INCLUDE_DIAGRAM true/false,
+ *           can choose whether to find existing transfers from old naming scheme
+ *   - Note: Explicit "transfer=reuse" marker always uses fuzzy matching
  *
  * v1.7.4 (2026-01-09)
  *   - Refactored: Transfer naming into orthogonal settings (cleaner config)
@@ -221,6 +229,13 @@ const TRANSFER_POSITION = "suffix";
 // "random" → Add random 4-char suffix: -a7b2
 // "sequential" → Add numbered suffix: _2, _3, etc. (position controlled by TRANSFER_POSITION)
 const TRANSFER_COLLISION_MODE = "none";
+
+// v1.7.5: CROSS-NAMING-SCHEME MATCHING
+// When looking for existing transfers, also match transfers with different naming schemes
+// Helps when transitioning between TRANSFER_INCLUDE_DIAGRAM = true/false
+// false (default) → Only match exact naming scheme
+// true → Also match: transfer_a_to_b matches transfer_a_to_b_diagram-name (and vice versa)
+const TRANSFER_FUZZY_MATCH = false;
 
 // v1.7.3: MARKER TEXT CLEANUP
 // Controls whether marker text (e.g., "transfer", "asset=Name") is cleaned from elements after processing
@@ -727,6 +742,26 @@ function isTransferOwnedByCurrentDiagram(fm, currentDiagramWiki) {
   return false;
 }
 
+// v1.7.5: Check if a filename matches the current naming scheme
+function matchesCurrentNamingScheme(fileName, corePattern, diagramSlug) {
+  if (!TRANSFER_FUZZY_MATCH) {
+    // Strict mode: must match current TRANSFER_INCLUDE_DIAGRAM setting
+    if (TRANSFER_INCLUDE_DIAGRAM) {
+      // Expect diagram name in filename
+      return fileName.includes(diagramSlug);
+    } else {
+      // Expect NO diagram name - filename should be exactly transfer_{core} or transfer_{core}_forward/reverse
+      // Check that after the core pattern, there's only _forward, _reverse, or nothing (plus optional collision suffix)
+      const afterCore = fileName.split(corePattern)[1] || "";
+      const hasUnexpectedSuffix = afterCore.length > 0 &&
+        !afterCore.match(/^(_forward|_reverse)?(-[a-z0-9]{4})?$/);
+      return !hasUnexpectedSuffix;
+    }
+  }
+  // Fuzzy mode: any filename with core pattern is acceptable
+  return true;
+}
+
 // v1.7.2: Find existing transfer between two objects created by the current diagram
 // Returns path if found, null otherwise
 async function findExistingTransferForDiagram(folder, objAName, objBName, currentDiagramWiki) {
@@ -739,6 +774,7 @@ async function findExistingTransferForDiagram(folder, objAName, objBName, curren
   const direction = TRANSFER_DIRECTION_WORD;
   const objASlug = slug(objAName);
   const objBSlug = slug(objBName);
+  const diagramSlug = slug(currentDiagramWiki.replace(/^\[\[|\]\]$/g, ""));
 
   // v1.7.3: Core pattern is the object-direction-object part
   const corePatternAtoB = `${objASlug}${OBJECT_SEPARATOR}${direction}${OBJECT_SEPARATOR}${objBSlug}`;
@@ -750,17 +786,26 @@ async function findExistingTransferForDiagram(folder, objAName, objBName, curren
 
     // v1.7.3: Check if filename contains the core pattern (handles all naming modes)
     // This matches: transfer_a_to_b, transfer_a_to_b_diagram, transfer_diagram_a_to_b, etc.
-    const matchesPattern = fileName.startsWith("transfer") &&
+    const hasCore = fileName.startsWith("transfer") &&
       (fileName.includes(corePatternAtoB) || fileName.includes(corePatternBtoA));
 
-    if (matchesPattern) {
-      const cache = app.metadataCache.getFileCache(file);
-      const fm = cache?.frontmatter;
+    if (!hasCore) continue;
 
-      if (fm && isTransferOwnedByCurrentDiagram(fm, currentDiagramWiki)) {
-        clog(`  v1.7.3: Found existing transfer owned by this diagram: ${file.path}`);
-        return file.path;
-      }
+    // v1.7.5: Check if filename matches current naming scheme (unless fuzzy matching enabled)
+    const coreUsed = fileName.includes(corePatternAtoB) ? corePatternAtoB : corePatternBtoA;
+    const matchesScheme = matchesCurrentNamingScheme(fileName, coreUsed, diagramSlug);
+
+    if (!matchesScheme) {
+      clog(`  v1.7.5: Skipping ${fileName} - doesn't match current naming scheme (fuzzy=${TRANSFER_FUZZY_MATCH})`);
+      continue;
+    }
+
+    const cache = app.metadataCache.getFileCache(file);
+    const fm = cache?.frontmatter;
+
+    if (fm && isTransferOwnedByCurrentDiagram(fm, currentDiagramWiki)) {
+      clog(`  v1.7.3: Found existing transfer owned by this diagram: ${file.path}`);
+      return file.path;
     }
   }
 
@@ -769,6 +814,8 @@ async function findExistingTransferForDiagram(folder, objAName, objBName, curren
 
 // v1.7.2: Find ANY existing transfer between two objects (regardless of ownership)
 // Used for explicit "transfer=reuse" marker
+// Note: This function always uses fuzzy matching (ignores TRANSFER_FUZZY_MATCH setting)
+// because explicit reuse requests should find any matching transfer
 async function findAnyTransferBetweenObjects(folder, objAName, objBName) {
   const transferFolder = app.vault.getAbstractFileByPath(folder);
   if (!transferFolder || !transferFolder.children) {
@@ -789,6 +836,7 @@ async function findAnyTransferBetweenObjects(folder, objAName, objBName) {
     const fileName = file.name.replace(/\.md$/, "");
 
     // v1.7.3: Check if filename contains the core pattern (handles all naming modes)
+    // v1.7.5: This function always uses fuzzy matching for explicit reuse requests
     const matchesPattern = fileName.startsWith("transfer") &&
       (fileName.includes(corePatternAtoB) || fileName.includes(corePatternBtoA));
 
@@ -2311,6 +2359,7 @@ async function ensureTransfer(arr) {
   clog(`📋 Bidirectional mode: ${BIDIRECTIONAL_MODE}`);
   clog(`📋 Transfer reuse mode: ${TRANSFER_REUSE_MODE}`);
   clog(`📋 Transfer naming: include_diagram=${TRANSFER_INCLUDE_DIAGRAM}, position=${TRANSFER_POSITION}, collision=${TRANSFER_COLLISION_MODE}`);
+  clog(`📋 Transfer fuzzy match: ${TRANSFER_FUZZY_MATCH}`);
   clog(`📋 Clean marker text: ${CLEAN_MARKER_TEXT}`);
 
   // Process nodes first
