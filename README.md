@@ -183,7 +183,7 @@ to: "[[analytics-platform]]"
 ### Scripts
 
 **Main Script**:
-- [Linkify DFD v1.6](Excalidraw/Scripts/Linkify%20DFD%20v1.6.md) - Main automation script (Excalidraw Automate)
+- [Linkify DFD v1.7](Linkify%20DFD%20v1.7.md) - Main automation script (Excalidraw Automate)
 
 **Helper Scripts** (v1.7):
 - [Mark All Arrows](Excalidraw/Scripts/Mark%20All%20Arrows.md) - Bulk add `transfer` marker to unmarked arrows
