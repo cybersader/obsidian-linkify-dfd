@@ -7,7 +7,7 @@ date modified: 2025-11-22T00:00:00-05:00
 /*
 ```js*/
 /*****************************************************************
- * Linkify DFD — v1.6.3  (2026-01-07)
+ * Linkify DFD — v1.7.4  (2026-01-09)
  * ---------------------------------------------------------------
  * COMPATIBILITY:
  *   - Tested with: Excalidraw 2.19.0
@@ -15,6 +15,77 @@ date modified: 2025-11-22T00:00:00-05:00
  *   - See .claude/research/excalidraw-dependency.md for API changes
  * ---------------------------------------------------------------
  * CHANGELOG:
+ *
+ * v1.7.4 (2026-01-09)
+ *   - Refactored: Transfer naming into orthogonal settings (cleaner config)
+ *           TRANSFER_INCLUDE_DIAGRAM (true/false) → Include diagram name in filename
+ *           TRANSFER_POSITION ("suffix"/"prefix") → Position for diagram & collision suffix
+ *           TRANSFER_COLLISION_MODE ("none"/"random"/"sequential") → How to handle collisions
+ *   - Changed: Default collision mode is now "none" (expect unique filenames from diagram name)
+ *   - Removed: Old TRANSFER_NAMING_MODE and TRANSFER_NUMBERING_MODE settings (replaced)
+ *   - Fixed: Orphan detection now works with diagram name suffix in filenames
+ *           Changed endsWith("_forward") to includes("_forward") throughout
+ *           Now correctly detects bidirectional→unidirectional conversion
+ *   - Fixed: Forward/reverse pair detection uses frontmatter paired_transfer first
+ *   - Improved: Cleaner settings organization in USER SETTINGS section
+ *
+ * v1.7.3 (2026-01-09)
+ *   - Added: TRANSFER_NAMING_MODE setting for diagram-aware filenames
+ *           "include_diagram_suffix" (default): transfer_asset-x_to_asset-y_my-diagram.md
+ *           "include_diagram_prefix": transfer_my-diagram_asset-x_to_asset-y.md
+ *           "auto": Legacy behavior (random/numbered suffix only on collision)
+ *   - Benefit: Transfer filenames now clearly show which diagram created them
+ *           Makes it easy to identify orphaned transfers and their origins
+ *   - Fixed: CRITICAL - Arrow link not being set when reusing existing transfer!
+ *           This caused arrows to show "transfer" text but have no link (Ctrl+K empty)
+ *           All code paths now properly set arr.link before returning
+ *   - Fixed: Stale link detection - when arrow has link to deleted transfer file,
+ *           script now continues checking for markers instead of silently failing
+ *   - Added: Helpful user notice when arrow has stale link but no marker found
+ *           Explains to use bound text (double-click arrow) to re-process
+ *   - Improved: Pattern matching for transfer lookup handles all naming modes
+ *   - Note: Existing transfers are not automatically renamed
+ *
+ * v1.7.2 (2026-01-09)
+ *   - BREAKING: Default transfer behavior changed to "per_diagram"
+ *           Each diagram now gets its own transfers (same endpoints = different transfers)
+ *           This prevents accidental coupling between contexts (Marketing vs Finance DFDs)
+ *   - Added: TRANSFER_REUSE_MODE setting ("per_diagram" | "reuse_existing")
+ *           "per_diagram" (default): Each diagram gets its own transfers
+ *           "reuse_existing": Old behavior - reuse if same endpoints exist
+ *   - Added: transfer=reuse marker syntax for explicit reuse requests
+ *           "transfer=reuse" → Reuse existing transfer with same endpoints
+ *           "transfer=reuse:[[path]]" → Link to specific existing transfer
+ *   - Added: Same-diagram exception - multiple arrows on SAME diagram can share transfers
+ *   - Added: "transfer" marker text cleanup from arrows after processing
+ *           (Similar to how asset markers are cleaned from shapes)
+ *   - Added: isTransferOwnedByCurrentDiagram() helper for ownership checks
+ *   - Added: findExistingTransferForDiagram() and findAnyTransferBetweenObjects() helpers
+ *   - See: .claude/plans/cheeky-hatching-shell.md for design rationale
+ *
+ * v1.7.1 (2026-01-09)
+ *   - Added: Multi-diagram tracking for transfers via _source_diagrams array
+ *           Transfers now track ALL diagrams that reference them, not just the first
+ *   - Added: Backward compatibility migration from legacy source_drawing field
+ *   - Changed: Orphan detection is now multi-diagram aware
+ *           Only orphans transfers when NO diagrams reference them
+ *           Warns instead of auto-orphaning when multiple diagrams tracked
+ *   - Added: addSourceDiagram() helper for consistent array management
+ *   - Fixed: Re-linking orphaned reverse transfer now works correctly
+ *           Bug was in pattern matching (missing OBJECT_SEPARATOR in find/replace)
+ *           Now correctly derives reverse path from forward path
+ *   - See: .claude/plans/cheeky-hatching-shell.md for design rationale
+ *
+ * v1.7.0 (2026-01-09)
+ *   - Added: Orphan detection for bidirectional→unidirectional conversion
+ *           When a bidirectional arrow becomes unidirectional, the orphaned
+ *           _reverse transfer is flagged with _status: "orphaned"
+ *   - Added: _status field for transfers ("active" | "orphaned" | "archived")
+ *   - Added: _orphan_detected, _orphan_reason, _last_linked_diagram fields
+ *   - Added: Clears orphan flags when a transfer is re-linked
+ *   - Fixed: Re-linking orphaned reverse when arrow changes back to bidirectional
+ *           Now properly finds and re-links orphaned _reverse transfers
+ *   - See: .claude/development/true-orphan-detection.md for design details
  *
  * v1.6.3 (2026-01-07)
  *   - Removed: TR-XXXX label feature (redundant - transfers already uniquely named)
@@ -41,8 +112,7 @@ date modified: 2025-11-22T00:00:00-05:00
  *   - Added: Arrow link automatically updates when transfer is renamed
  *   - Fixed: No longer need to manually delete transfer links after changing
  *           shape endpoints
- *   - Known limitation: Orphaned paired transfers (_reverse) not auto-cleaned
- *           when _forward is renamed (planned for v1.7)
+ *   - Note: Orphaned paired transfers now handled in v1.7.0
  *
  * v1.5.6 (2025-12-18)
  *   - Fixed: Bidirectional conversion in dual_transfers mode now properly
@@ -105,7 +175,7 @@ const CROSS_TYPE_MATCHING = false;         // If true, "entity=X" can match exis
 // Storage options
 const DB_PLACEMENT = "db_folder";
 const DB_FOLDER_NAME = "DFD Objects Database";
-const DB_DB_PARENT_PATH = "";  // Set this to parent path if needed, e.g., "3 - Docs, Intel, SOPs/30 - Data Flow Diagram Database/"
+const DB_DB_PARENT_PATH = "";  // Set this to parent path if needed, e.g., "Folder/Subfolder/"
 
 // Config folder
 const CFG_DIR = "./DFD Object Configuration";
@@ -126,12 +196,37 @@ const OBJECT_SEPARATOR = "_";
 const INCLUDE_FROM_TO_PROPERTIES = true;
 const BIDIRECTIONAL_FROM_TO_BOTH = true;
 
-// NEW: TRANSFER NUMBERING MODE
-// Controls how duplicate transfer names are handled
-// "prefix" → transfer_2_dna_to_imm, transfer_3_dna_to_imm (number after "transfer")
-// "suffix" → transfer_dna_to_imm_2, transfer_dna_to_imm_3 (number at end)
-// "random" → transfer_dna_to_imm-a7b2 (random 4-char suffix - legacy behavior)
-const TRANSFER_NUMBERING_MODE = "random";
+// v1.7.2: TRANSFER REUSE MODE
+// Controls whether to reuse existing transfers across diagrams
+// "per_diagram" (default) → Each diagram gets its own transfers (same endpoints = different transfers)
+// "reuse_existing" → Reuse if same endpoints exist (old behavior, for backward compatibility)
+// Note: Explicit "transfer=reuse" marker always allows reuse regardless of this setting
+const TRANSFER_REUSE_MODE = "reuse_existing";
+
+// v1.7.4: ORTHOGONAL TRANSFER NAMING SETTINGS
+// These three settings work together to control transfer filename format:
+
+// 1. Include diagram name in filename?
+// true (default) → transfer_asset-x_to_asset-y_my-diagram.md (clear ownership)
+// false → transfer_asset-x_to_asset-y.md (legacy behavior)
+const TRANSFER_INCLUDE_DIAGRAM = false;
+
+// 2. Position for diagram name and collision suffix
+// "suffix" (default) → _my-diagram or _2 at end of filename
+// "prefix" → diagram name or number right after "transfer_"
+const TRANSFER_POSITION = "suffix";
+
+// 3. How to handle name collisions (file already exists)
+// "none" (default) → Expect no collision; if one occurs, use random fallback
+// "random" → Add random 4-char suffix: -a7b2
+// "sequential" → Add numbered suffix: _2, _3, etc. (position controlled by TRANSFER_POSITION)
+const TRANSFER_COLLISION_MODE = "none";
+
+// v1.7.3: MARKER TEXT CLEANUP
+// Controls whether marker text (e.g., "transfer", "asset=Name") is cleaned from elements after processing
+// true (default) → Remove marker text after linking (cleaner diagrams)
+// false → Keep marker text visible (useful for testing/debugging)
+const CLEAN_MARKER_TEXT = true;
 
 // DEBUG FILE LOGGING
 // Writes debug output to a file for easier review (especially for AI assistants)
@@ -209,9 +304,15 @@ function normalizePath(path) {
   return path.replace(/^\/+|\/+$/g, "");
 }
 
-// NEW: Find the next available number for a transfer between two objects
+// v1.7.4: Find the next available number for sequential collision handling
 function findNextTransferNumber(folder, objA, direction, objB) {
   clog(`🔢 Finding next transfer number for: ${objA} ${direction} ${objB}`);
+
+  // Only used when TRANSFER_COLLISION_MODE is "sequential"
+  if (TRANSFER_COLLISION_MODE !== "sequential") {
+    clog(`  Collision mode is "${TRANSFER_COLLISION_MODE}", not sequential - returning null`);
+    return null;
+  }
 
   const transferFolder = app.vault.getAbstractFileByPath(folder);
   if (!transferFolder || !transferFolder.children) {
@@ -219,9 +320,9 @@ function findNextTransferNumber(folder, objA, direction, objB) {
     return 1;
   }
 
-  // Build regex patterns based on numbering mode
+  // Build regex patterns based on TRANSFER_POSITION setting
   let pattern;
-  if (TRANSFER_NUMBERING_MODE === "prefix") {
+  if (TRANSFER_POSITION === "prefix") {
     // Match: transfer_N_objA_direction_objB.md where N is optional (first one has no number)
     // First file: transfer_objA_direction_objB.md
     // Subsequent: transfer_2_objA_direction_objB.md, transfer_3_objA_direction_objB.md
@@ -229,17 +330,14 @@ function findNextTransferNumber(folder, objA, direction, objB) {
       `^transfer(?:${OBJECT_SEPARATOR}(\\d+))?${OBJECT_SEPARATOR}${escapeRegex(objA)}${OBJECT_SEPARATOR}${escapeRegex(direction)}${OBJECT_SEPARATOR}${escapeRegex(objB)}\\.md$`,
       'i'
     );
-  } else if (TRANSFER_NUMBERING_MODE === "suffix") {
-    // Match: transfer_objA_direction_objB_N.md where N is optional
+  } else {
+    // "suffix" (default) - Match: transfer_objA_direction_objB_N.md where N is optional
     // First file: transfer_objA_direction_objB.md
     // Subsequent: transfer_objA_direction_objB_2.md, transfer_objA_direction_objB_3.md
     pattern = new RegExp(
       `^transfer${OBJECT_SEPARATOR}${escapeRegex(objA)}${OBJECT_SEPARATOR}${escapeRegex(direction)}${OBJECT_SEPARATOR}${escapeRegex(objB)}(?:${OBJECT_SEPARATOR}(\\d+))?\\.md$`,
       'i'
     );
-  } else {
-    // Random mode - no numbering needed
-    return null;
   }
 
   let maxNumber = 0;
@@ -505,12 +603,22 @@ function shortWiki(path, fromPath) {
   const file = app.vault.getAbstractFileByPath(path);
   if (!file) {
     clog(`⚠️  File not found for shortWiki: ${path}`);
-    return `[[${path}]]`;
+    // v1.7.2: Fall back to basename if file not found (race condition with newly created files)
+    const baseName = path.split("/").pop().replace(/\.md$/i, "");
+    return `[[${baseName}]]`;
   }
 
   const linkText = app.metadataCache.fileToLinktext(file, fromPath);
-  const result = `[[${linkText}]]`;
 
+  // v1.7.2: If fileToLinktext returns a path with slashes (full path), fall back to basename
+  // This happens when metadata cache hasn't indexed the newly created file yet
+  if (linkText.includes("/")) {
+    const baseName = path.split("/").pop().replace(/\.md$/i, "");
+    clog(`shortWiki: ${path} → [[${baseName}]] (fallback - fileToLinktext returned path: ${linkText})`);
+    return `[[${baseName}]]`;
+  }
+
+  const result = `[[${linkText}]]`;
   clog(`shortWiki: ${path} → ${result} (from: ${fromPath})`);
   return result;
 }
@@ -562,6 +670,135 @@ async function removeFromArr(fp, key, value) {
     }
     fm[key] = arr;
   });
+}
+
+// v1.7.1: Helper to add diagram to _source_diagrams array with migration from legacy source_drawing
+async function addSourceDiagram(fp, sourceWiki) {
+  await setFM(fp, fm => {
+    // Migrate from legacy source_drawing (singular) to _source_diagrams (array)
+    if (fm.source_drawing && !fm._source_diagrams) {
+      const legacyValue = fm.source_drawing;
+      fm._source_diagrams = Array.isArray(legacyValue) ? legacyValue : [legacyValue];
+      clog(`  📍 Migrated source_drawing → _source_diagrams: ${JSON.stringify(fm._source_diagrams)}`);
+      delete fm.source_drawing;  // Remove legacy field
+    }
+
+    // Ensure array exists
+    if (!fm._source_diagrams) {
+      fm._source_diagrams = [];
+    } else if (!Array.isArray(fm._source_diagrams)) {
+      fm._source_diagrams = [fm._source_diagrams];
+    }
+
+    // Add current diagram if not already present
+    if (!fm._source_diagrams.includes(sourceWiki)) {
+      fm._source_diagrams.push(sourceWiki);
+      clog(`  📍 Added to _source_diagrams: ${sourceWiki} (now ${fm._source_diagrams.length} diagrams)`);
+    } else {
+      clog(`  📍 Already in _source_diagrams: ${sourceWiki}`);
+    }
+  });
+}
+
+// v1.7.1: Get count of source diagrams for a transfer (for orphan detection)
+function getSourceDiagramCount(fm) {
+  if (fm._source_diagrams) {
+    return Array.isArray(fm._source_diagrams) ? fm._source_diagrams.length : 1;
+  }
+  // Legacy field
+  if (fm.source_drawing) {
+    return Array.isArray(fm.source_drawing) ? fm.source_drawing.length : 1;
+  }
+  return 0;
+}
+
+// v1.7.2: Check if a transfer is owned by (was created from) the current diagram
+// Returns true if current diagram is in _source_diagrams array
+function isTransferOwnedByCurrentDiagram(fm, currentDiagramWiki) {
+  if (fm._source_diagrams) {
+    const diagrams = Array.isArray(fm._source_diagrams) ? fm._source_diagrams : [fm._source_diagrams];
+    return diagrams.includes(currentDiagramWiki);
+  }
+  // Legacy field
+  if (fm.source_drawing) {
+    const legacyValue = fm.source_drawing.toString();
+    return legacyValue.includes(currentDiagramWiki) || legacyValue.includes(bn(currentDiagramWiki));
+  }
+  return false;
+}
+
+// v1.7.2: Find existing transfer between two objects created by the current diagram
+// Returns path if found, null otherwise
+async function findExistingTransferForDiagram(folder, objAName, objBName, currentDiagramWiki) {
+  const transferFolder = app.vault.getAbstractFileByPath(folder);
+  if (!transferFolder || !transferFolder.children) {
+    return null;
+  }
+
+  // Build the expected base pattern for transfer names
+  const direction = TRANSFER_DIRECTION_WORD;
+  const objASlug = slug(objAName);
+  const objBSlug = slug(objBName);
+
+  // v1.7.3: Core pattern is the object-direction-object part
+  const corePatternAtoB = `${objASlug}${OBJECT_SEPARATOR}${direction}${OBJECT_SEPARATOR}${objBSlug}`;
+  const corePatternBtoA = `${objBSlug}${OBJECT_SEPARATOR}${direction}${OBJECT_SEPARATOR}${objASlug}`;
+
+  for (const file of transferFolder.children) {
+    if (!file.name?.endsWith(".md")) continue;
+    const fileName = file.name.replace(/\.md$/, "");
+
+    // v1.7.3: Check if filename contains the core pattern (handles all naming modes)
+    // This matches: transfer_a_to_b, transfer_a_to_b_diagram, transfer_diagram_a_to_b, etc.
+    const matchesPattern = fileName.startsWith("transfer") &&
+      (fileName.includes(corePatternAtoB) || fileName.includes(corePatternBtoA));
+
+    if (matchesPattern) {
+      const cache = app.metadataCache.getFileCache(file);
+      const fm = cache?.frontmatter;
+
+      if (fm && isTransferOwnedByCurrentDiagram(fm, currentDiagramWiki)) {
+        clog(`  v1.7.3: Found existing transfer owned by this diagram: ${file.path}`);
+        return file.path;
+      }
+    }
+  }
+
+  return null;
+}
+
+// v1.7.2: Find ANY existing transfer between two objects (regardless of ownership)
+// Used for explicit "transfer=reuse" marker
+async function findAnyTransferBetweenObjects(folder, objAName, objBName) {
+  const transferFolder = app.vault.getAbstractFileByPath(folder);
+  if (!transferFolder || !transferFolder.children) {
+    return null;
+  }
+
+  // Build the expected base pattern for transfer names
+  const direction = TRANSFER_DIRECTION_WORD;
+  const objASlug = slug(objAName);
+  const objBSlug = slug(objBName);
+
+  // v1.7.3: Core pattern is the object-direction-object part
+  const corePatternAtoB = `${objASlug}${OBJECT_SEPARATOR}${direction}${OBJECT_SEPARATOR}${objBSlug}`;
+  const corePatternBtoA = `${objBSlug}${OBJECT_SEPARATOR}${direction}${OBJECT_SEPARATOR}${objASlug}`;
+
+  for (const file of transferFolder.children) {
+    if (!file.name?.endsWith(".md")) continue;
+    const fileName = file.name.replace(/\.md$/, "");
+
+    // v1.7.3: Check if filename contains the core pattern (handles all naming modes)
+    const matchesPattern = fileName.startsWith("transfer") &&
+      (fileName.includes(corePatternAtoB) || fileName.includes(corePatternBtoA));
+
+    if (matchesPattern) {
+      clog(`  v1.7.3: Found existing transfer: ${file.path}`);
+      return file.path;
+    }
+  }
+
+  return null;
 }
 
 async function dvInline(fp, field, val) {
@@ -751,7 +988,26 @@ function parseMarker(s) {
   }
 
   const result = { kind: m[1].toLowerCase(), customName };
-  clog(`  Parsed marker "${s.replace(/\n/g, '\\n')}" → kind: ${result.kind}, customName: ${result.customName}`);
+
+  // v1.7.2: Parse transfer=reuse syntax
+  // "transfer=reuse" → reuse existing transfer with same endpoints
+  // "transfer=reuse:[[path]]" → link to specific existing transfer
+  if (result.kind === "transfer" && customName) {
+    if (customName.toLowerCase() === "reuse") {
+      result.reuseMode = "auto";  // Reuse existing with same endpoints
+      result.customName = null;   // Clear customName since it's the reuse directive
+      clog(`  v1.7.2: Detected transfer=reuse (auto mode)`);
+    } else if (customName.toLowerCase().startsWith("reuse:")) {
+      const target = customName.slice(6).trim();  // Remove "reuse:" prefix
+      result.reuseMode = "specific";
+      result.reuseTarget = target;  // Could be "[[Transfer Name]]" or "Transfer Name"
+      result.customName = null;     // Clear customName
+      clog(`  v1.7.2: Detected transfer=reuse:${target} (specific mode)`);
+    }
+    // Otherwise customName is a regular custom name for a new transfer
+  }
+
+  clog(`  Parsed marker "${s.replace(/\n/g, '\\n')}" → kind: ${result.kind}, customName: ${result.customName}${result.reuseMode ? `, reuseMode: ${result.reuseMode}` : ""}`);
   return result;
 }
 
@@ -759,6 +1015,7 @@ function parseMarker(s) {
 function classifyElement(el) {
   clog(`\n--- Classifying element ${el.id} (${el.type}) ---`);
   const group = getGroupEls(el);
+  let hasStaleLink = false;  // v1.7.3: Track if element has link to deleted file
 
   // Check customData first
   const cd = el.customData?.dfd || el.customData?.DFD;
@@ -782,6 +1039,11 @@ function classifyElement(el) {
       if (resolvedPath && exists(resolvedPath)) {
         clog(`  ✓ Element already links to legitimate file: ${resolvedPath}`);
         return { kind: "existing", customName: null, existingPath: resolvedPath };
+      } else {
+        // v1.7.3: Link points to non-existent file (deleted?) - continue checking for markers
+        clog(`  ⚠️ Element has stale link to non-existent file: ${el.link}`);
+        clog(`  ℹ️ Will check for new markers (bound text, group text) to re-process`);
+        hasStaleLink = true;
       }
     }
   }
@@ -820,6 +1082,13 @@ function classifyElement(el) {
       clog(`  ✓ Fallback: ${el.type} → asset`);
       return { kind: "asset", customName: null };
     }
+  }
+
+  // v1.7.3: Helpful warning when element has stale link but no marker to re-process
+  if (hasStaleLink && el.type === "arrow") {
+    clog(`  ⚠️ Arrow has stale link to deleted transfer but no "transfer" marker found`);
+    clog(`  ℹ️ To re-process: Double-click arrow and type "transfer" (bound text), then re-run`);
+    note(`↯ Arrow has stale link. Add "transfer" as bound text (double-click arrow) to re-process.`);
   }
 
   clog(`  ✗ No valid classification found`);
@@ -1129,8 +1398,8 @@ function generateTransferBaseName(objectAPath, objectBPath, isBidirectional = fa
   return `transfer${OBJECT_SEPARATOR}${objA}${OBJECT_SEPARATOR}${direction}${OBJECT_SEPARATOR}${objB}`;
 }
 
-/* ---------- Transfer creation helper - IMPROVED with numbering ---------- */
-async function createTransferNote(objectAPath, objectBPath, classification, isBidirectional = false, suffix = "") {
+/* ---------- Transfer creation helper - v1.7.4 with orthogonal naming settings ---------- */
+async function createTransferNote(objectAPath, objectBPath, classification, isBidirectional = false, suffix = "", diagramName = null) {
   const config = getConfig("transfer");
   const folder = getTargetFolder("transfer");
 
@@ -1138,49 +1407,75 @@ async function createTransferNote(objectAPath, objectBPath, classification, isBi
   const objA = slug(bn(objectAPath));
   const objB = slug(bn(objectBPath));
 
+  // v1.7.4: Get diagram name for filename if TRANSFER_INCLUDE_DIAGRAM is true
+  const diagramSlug = diagramName ? slug(diagramName) : slug(bn(view.file.path));
+
   let fileName;
   let path;
 
-  if (TRANSFER_NUMBERING_MODE === "random") {
-    // Legacy random suffix behavior
-    fileName = `transfer${OBJECT_SEPARATOR}${objA}${OBJECT_SEPARATOR}${direction}${OBJECT_SEPARATOR}${objB}${suffix}`;
-    path = `${folder}/${fileName}.md`;
+  // v1.7.4: Build filename using orthogonal settings
+  clog(`  Building filename: INCLUDE_DIAGRAM=${TRANSFER_INCLUDE_DIAGRAM}, POSITION=${TRANSFER_POSITION}, COLLISION_MODE=${TRANSFER_COLLISION_MODE}`);
 
-    if (exists(path)) {
-      path = `${folder}/${fileName}-${rnd4()}.md`;
-      clog(`  File exists, using random suffix: ${path}`);
+  // Step 1: Build base filename (without diagram or collision handling)
+  const baseName = `transfer${OBJECT_SEPARATOR}${objA}${OBJECT_SEPARATOR}${direction}${OBJECT_SEPARATOR}${objB}${suffix}`;
+
+  // Step 2: Add diagram name if enabled
+  if (TRANSFER_INCLUDE_DIAGRAM) {
+    if (TRANSFER_POSITION === "prefix") {
+      // transfer_my-diagram_asset-x_to_asset-y.md
+      fileName = `transfer${OBJECT_SEPARATOR}${diagramSlug}${OBJECT_SEPARATOR}${objA}${OBJECT_SEPARATOR}${direction}${OBJECT_SEPARATOR}${objB}${suffix}`;
+    } else {
+      // transfer_asset-x_to_asset-y_my-diagram.md (suffix, default)
+      fileName = `${baseName}${OBJECT_SEPARATOR}${diagramSlug}`;
     }
+    clog(`  Including diagram name (${TRANSFER_POSITION}): ${fileName}`);
   } else {
-    // Numbered mode (prefix or suffix)
-    const nextNum = findNextTransferNumber(folder, objA, direction, objB);
+    // No diagram name
+    fileName = baseName;
+    clog(`  No diagram name: ${fileName}`);
+  }
 
-    if (TRANSFER_NUMBERING_MODE === "prefix") {
-      // transfer_2_dna_to_imm, transfer_3_dna_to_imm
-      if (nextNum === 1) {
-        // First file - no number
-        fileName = `transfer${OBJECT_SEPARATOR}${objA}${OBJECT_SEPARATOR}${direction}${OBJECT_SEPARATOR}${objB}${suffix}`;
+  path = `${folder}/${fileName}.md`;
+
+  // Step 3: Handle collision if file exists
+  if (exists(path)) {
+    clog(`  File exists: ${path} - applying collision handling (${TRANSFER_COLLISION_MODE})`);
+
+    if (TRANSFER_COLLISION_MODE === "sequential") {
+      // Find next available number
+      const nextNum = findNextTransferNumber(folder, objA, direction, objB);
+      if (TRANSFER_POSITION === "prefix") {
+        // transfer_2_asset-x_to_asset-y.md (or transfer_my-diagram_2_... if diagram included)
+        if (TRANSFER_INCLUDE_DIAGRAM) {
+          fileName = `transfer${OBJECT_SEPARATOR}${diagramSlug}${OBJECT_SEPARATOR}${nextNum}${OBJECT_SEPARATOR}${objA}${OBJECT_SEPARATOR}${direction}${OBJECT_SEPARATOR}${objB}${suffix}`;
+        } else {
+          fileName = `transfer${OBJECT_SEPARATOR}${nextNum}${OBJECT_SEPARATOR}${objA}${OBJECT_SEPARATOR}${direction}${OBJECT_SEPARATOR}${objB}${suffix}`;
+        }
       } else {
-        // Subsequent files - number after "transfer"
-        fileName = `transfer${OBJECT_SEPARATOR}${nextNum}${OBJECT_SEPARATOR}${objA}${OBJECT_SEPARATOR}${direction}${OBJECT_SEPARATOR}${objB}${suffix}`;
+        // transfer_asset-x_to_asset-y_2.md or transfer_asset-x_to_asset-y_my-diagram_2.md
+        if (TRANSFER_INCLUDE_DIAGRAM) {
+          fileName = `${baseName}${OBJECT_SEPARATOR}${diagramSlug}${OBJECT_SEPARATOR}${nextNum}`;
+        } else {
+          fileName = `${baseName}${OBJECT_SEPARATOR}${nextNum}`;
+        }
       }
-    } else if (TRANSFER_NUMBERING_MODE === "suffix") {
-      // transfer_dna_to_imm_2, transfer_dna_to_imm_3
-      if (nextNum === 1) {
-        // First file - no number
-        fileName = `transfer${OBJECT_SEPARATOR}${objA}${OBJECT_SEPARATOR}${direction}${OBJECT_SEPARATOR}${objB}${suffix}`;
-      } else {
-        // Subsequent files - number at end
-        fileName = `transfer${OBJECT_SEPARATOR}${objA}${OBJECT_SEPARATOR}${direction}${OBJECT_SEPARATOR}${objB}${suffix}${OBJECT_SEPARATOR}${nextNum}`;
-      }
+      path = `${folder}/${fileName}.md`;
+      clog(`  Using sequential number #${nextNum}: ${path}`);
+    } else if (TRANSFER_COLLISION_MODE === "random") {
+      // Add random suffix
+      path = `${folder}/${fileName}-${rnd4()}.md`;
+      clog(`  Using random suffix: ${path}`);
+    } else {
+      // TRANSFER_COLLISION_MODE === "none" - fallback to random (shouldn't happen often)
+      path = `${folder}/${fileName}-${rnd4()}.md`;
+      clog(`  Collision mode 'none' but collision occurred - fallback to random: ${path}`);
     }
-
-    path = `${folder}/${fileName}.md`;
-    clog(`  Using numbered filename (${TRANSFER_NUMBERING_MODE}, #${nextNum}): ${path}`);
   }
 
   const fm = Object.assign({}, config.defaults, {
     name: classification.customName || config.defaults.name || "transfer",
-    created: nowISO()
+    created: nowISO(),
+    _status: "active"  // v1.7.0: Default status for orphan tracking
   });
 
   if (isBidirectional) {
@@ -1202,6 +1497,39 @@ async function createTransferNote(objectAPath, objectBPath, classification, isBi
   clog(`  ✓ Created transfer note: ${path}`);
 
   return path;
+}
+
+/* ---------- v1.7.3: Helper to clean transfer marker text from arrow ---------- */
+function cleanTransferMarkerText(arr) {
+  // v1.7.3: Check if cleanup is enabled
+  if (!CLEAN_MARKER_TEXT) {
+    clog(`  ℹ️ Marker text cleanup disabled (CLEAN_MARKER_TEXT = false)`);
+    return;
+  }
+
+  // Clean "transfer" marker text from arrow bound text
+  const boundTextEl = getBoundText(arr);
+  if (boundTextEl && parseMarker(boundTextEl.text?.trim()) && !modifiedTextElements.has(boundTextEl.id)) {
+    clog(`  ✂️ Cleaning transfer marker from arrow bound text: "${boundTextEl.text}"`);
+    boundTextEl.text = "";
+    boundTextEl.rawText = "";
+    boundTextEl.originalText = "";
+    modifiedTextElements.add(boundTextEl.id);
+    safeCopyToEA([boundTextEl]);
+  }
+
+  // Also clean grouped text
+  const groupEls = getGroupEls(arr);
+  for (const e of groupEls) {
+    if (e.id !== arr.id && typeof e.text === "string" && parseMarker(e.text.trim()) && !modifiedTextElements.has(e.id)) {
+      clog(`  ✂️ Cleaning transfer marker from grouped text: "${e.text}"`);
+      e.text = "";
+      e.rawText = "";
+      e.originalText = "";
+      modifiedTextElements.add(e.id);
+      safeCopyToEA([e]);
+    }
+  }
 }
 
 /* ---------- transfers with improved direction detection ---------- */
@@ -1304,12 +1632,64 @@ async function ensureTransfer(arr) {
     }
   }
 
+  // v1.7.2: Transfer reuse decision based on TRANSFER_REUSE_MODE and explicit markers
+  const sourceWiki = shortWiki(view.file.path, view.file.path);
+
+  // v1.7.2: Handle explicit "transfer=reuse" marker - always reuse
+  if (classification.reuseMode === "auto") {
+    clog(`  v1.7.2: Explicit reuse marker detected - searching for existing transfer`);
+    // Find any existing transfer between these objects (regardless of diagram ownership)
+    const transferFolder = getTargetFolder("transfer");
+    const matchedPath = await findAnyTransferBetweenObjects(transferFolder, bn(startPath), bn(endPath));
+    if (matchedPath) {
+      reuseExistingPath = matchedPath;
+      clog(`  v1.7.2: Found matching transfer to reuse: ${matchedPath}`);
+    } else {
+      clog(`  v1.7.2: No existing transfer found, will create new`);
+    }
+  } else if (classification.reuseMode === "specific") {
+    // Specific transfer path requested
+    const targetPath = resolveLink(classification.reuseTarget, view.file.path);
+    if (targetPath && exists(targetPath)) {
+      reuseExistingPath = targetPath;
+      clog(`  v1.7.2: Using specific transfer: ${targetPath}`);
+    } else {
+      clog(`  v1.7.2: Specific transfer not found: ${classification.reuseTarget}`);
+      note(`⚠️ Transfer not found: ${classification.reuseTarget}`);
+    }
+  }
+
+  // v1.7.2: If we found an existing transfer from arrow.link, check diagram ownership
+  if (reuseExistingPath && TRANSFER_REUSE_MODE === "per_diagram" && !classification.reuseMode) {
+    const transferFile = app.vault.getAbstractFileByPath(reuseExistingPath);
+    const transferCache = transferFile ? app.metadataCache.getFileCache(transferFile) : null;
+    const existingFM = transferCache?.frontmatter || {};
+
+    if (!isTransferOwnedByCurrentDiagram(existingFM, sourceWiki)) {
+      clog(`  v1.7.2: Transfer from different diagram, TRANSFER_REUSE_MODE=${TRANSFER_REUSE_MODE}`);
+      clog(`  v1.7.2: Clearing arrow link, will create new transfer for this diagram`);
+      // Clear the existing link - we'll create a new transfer
+      arr.link = "";
+      reuseExistingPath = null;
+    }
+  }
+
+  // v1.7.2: Check if THIS diagram already has a transfer for these objects (same-diagram reuse)
+  if (!reuseExistingPath) {
+    const transferFolder = getTargetFolder("transfer");
+    const ownedTransfer = await findExistingTransferForDiagram(transferFolder, bn(startPath), bn(endPath), sourceWiki);
+    if (ownedTransfer) {
+      reuseExistingPath = ownedTransfer;
+      clog(`  v1.7.2: Found existing transfer owned by this diagram: ${ownedTransfer}`);
+    }
+  }
+
   // If we have an existing transfer to reuse, update relationships and return
   if (reuseExistingPath) {
     clog(`  ✓ Reusing existing transfer: ${reuseExistingPath}`);
     const startWiki = shortWiki(startPath, view.file.path);
     const endWiki = shortWiki(endPath, view.file.path);
-    const sourceWiki = shortWiki(view.file.path, view.file.path);
+    // Note: sourceWiki already declared above at line 1452 for v1.7.2 reuse logic
 
     // Read current values to detect endpoint changes
     const transferFile = app.vault.getAbstractFileByPath(reuseExistingPath);
@@ -1327,7 +1707,8 @@ async function ensureTransfer(arr) {
     // Need to convert existing unidirectional transfer to forward/reverse pair
     if (bidirectional && BIDIRECTIONAL_MODE === "dual_transfers") {
       const existingFileName = bn(reuseExistingPath);
-      const hasSuffix = existingFileName.endsWith("_forward") || existingFileName.endsWith("_reverse");
+      // v1.7.4: Use includes() because diagram name may come after _forward/_reverse suffix
+      const hasSuffix = existingFileName.includes("_forward") || existingFileName.includes("_reverse");
 
       if (!hasSuffix) {
         clog(`  🔄 Converting unidirectional to bidirectional (dual_transfers mode)`);
@@ -1350,7 +1731,6 @@ async function ensureTransfer(arr) {
         await setFM(forwardPath, fm => {
           fm.object_a = startWiki;
           fm.object_b = endWiki;
-          fm.source_drawing = sourceWiki;
           fm.paired_transfer = reverseWiki;
           fm.direction_source = direction.directionSource;
 
@@ -1364,7 +1744,6 @@ async function ensureTransfer(arr) {
         await setFM(reversePath, fm => {
           fm.object_a = endWiki;
           fm.object_b = startWiki;
-          fm.source_drawing = sourceWiki;
           fm.paired_transfer = forwardWiki;
           fm.direction_source = direction.directionSource;
 
@@ -1373,6 +1752,10 @@ async function ensureTransfer(arr) {
             fm.to = startWiki;
           }
         });
+
+        // v1.7.1: Add diagram to _source_diagrams array for both transfers
+        await addSourceDiagram(forwardPath, sourceWiki);
+        await addSourceDiagram(reversePath, sourceWiki);
 
         // Step 5: Update arrow link to new forward path
         arr.link = forwardWiki;
@@ -1391,12 +1774,274 @@ async function ensureTransfer(arr) {
 
         note(`✓ Converted to bidirectional: ${forwardWiki} ⟷ ${reverseWiki}`);
         clog(`  ✓ Converted to bidirectional: ${forwardWiki} ⟷ ${reverseWiki}`);
+        cleanTransferMarkerText(arr);
+        safeCopyToEA([arr]);
         return;
       } else {
         clog(`  ℹ️ Transfer already has _forward/_reverse suffix, checking for pair...`);
-        // Already has suffix - just make sure pair exists and arrays are correct
-        // (This handles re-runs on already-converted transfers)
+        // Already has suffix - make sure pair exists and arrays are correct
+        // v1.7.0: Also re-link orphaned reverse if it exists
+
+        const existingFileName = bn(reuseExistingPath);
+        const folder = reuseExistingPath.substring(0, reuseExistingPath.lastIndexOf("/"));
+
+        // Determine if we're the forward or reverse, and find the pair
+        // v1.7.4: Use includes() and handle diagram name suffix
+        let forwardPath, reversePath, forwardWiki, reverseWiki;
+        const isForward = existingFileName.includes("_forward");
+        const isReverse = existingFileName.includes("_reverse");
+
+        if (isForward) {
+          forwardPath = reuseExistingPath;
+          // v1.7.4: First try to get paired path from frontmatter (more reliable)
+          if (oldFM.paired_transfer) {
+            reversePath = resolveLink(oldFM.paired_transfer, view.file.path);
+            clog(`  🔍 Found reverse in frontmatter: ${reversePath}`);
+          } else {
+            // Derive the expected reverse path from the forward name
+            // v1.7.4: Extract suffix that comes after "_forward" (e.g., diagram name)
+            const forwardIdx = existingFileName.indexOf("_forward");
+            const baseName = existingFileName.slice(0, forwardIdx);
+            const afterSuffix = existingFileName.slice(forwardIdx + "_forward".length); // e.g., "_test-10-14"
+            // Try to find existing reverse (may be orphaned)
+            const expectedReverseName = baseName.replace(
+              `${bn(startPath)}${OBJECT_SEPARATOR}${TRANSFER_DIRECTION_WORD}${OBJECT_SEPARATOR}${bn(endPath)}`,
+              `${bn(endPath)}${OBJECT_SEPARATOR}${TRANSFER_DIRECTION_WORD}${OBJECT_SEPARATOR}${bn(startPath)}`
+            ) + "_reverse" + afterSuffix;
+            reversePath = `${folder}/${expectedReverseName}.md`;
+            clog(`  🔍 Derived reverse path: ${reversePath}`);
+          }
+        } else if (isReverse) {
+          reversePath = reuseExistingPath;
+          // v1.7.4: First try to get paired path from frontmatter
+          if (oldFM.paired_transfer) {
+            forwardPath = resolveLink(oldFM.paired_transfer, view.file.path);
+            clog(`  🔍 Found forward in frontmatter: ${forwardPath}`);
+          } else {
+            // Derive the expected forward path
+            const reverseIdx = existingFileName.indexOf("_reverse");
+            const baseName = existingFileName.slice(0, reverseIdx);
+            const afterSuffix = existingFileName.slice(reverseIdx + "_reverse".length);
+            const expectedForwardName = baseName.replace(
+              `${bn(startPath)}${OBJECT_SEPARATOR}${TRANSFER_DIRECTION_WORD}${OBJECT_SEPARATOR}${bn(endPath)}`,
+              `${bn(endPath)}${OBJECT_SEPARATOR}${TRANSFER_DIRECTION_WORD}${OBJECT_SEPARATOR}${bn(startPath)}`
+            ) + "_forward" + afterSuffix;
+            forwardPath = `${folder}/${expectedForwardName}.md`;
+            clog(`  🔍 Derived forward path: ${forwardPath}`);
+          }
+        }
+
+        // Check if the reverse exists and might be orphaned
+        if (forwardPath && reversePath) {
+          forwardWiki = shortWiki(forwardPath, view.file.path);
+          reverseWiki = shortWiki(reversePath, view.file.path);
+
+          if (exists(reversePath)) {
+            const reverseFile = app.vault.getAbstractFileByPath(reversePath);
+            const reverseCache = reverseFile ? app.metadataCache.getFileCache(reverseFile) : null;
+            const reverseFM = reverseCache?.frontmatter || {};
+
+            // v1.7.0: If the reverse is orphaned, re-link it!
+            if (reverseFM._status === "orphaned") {
+              clog(`  ✓ Found orphaned reverse transfer, re-linking: ${reversePath}`);
+
+              // Clear orphan flags and restore paired relationship
+              await setFM(reversePath, fm => {
+                fm._status = "active";
+                delete fm._orphan_detected;
+                delete fm._orphan_reason;
+                delete fm._last_linked_diagram;
+                fm.paired_transfer = forwardWiki;
+                fm.direction_source = direction.directionSource;
+              });
+
+              // Update forward's paired_transfer
+              await setFM(forwardPath, fm => {
+                fm.paired_transfer = reverseWiki;
+                fm.direction_source = direction.directionSource;
+              });
+
+              // Update dfd_in/dfd_out arrays for both directions
+              await pushArr(startPath, "dfd_out", forwardWiki);
+              await pushArr(startPath, "dfd_in", reverseWiki);
+              await pushArr(endPath, "dfd_in", forwardWiki);
+              await pushArr(endPath, "dfd_out", reverseWiki);
+
+              // v1.7.3: Set arrow link to forward transfer
+              arr.link = forwardWiki;
+              clog(`  ✓ Set arrow link: ${forwardWiki}`);
+
+              note(`✓ Re-linked orphaned transfer: ${reverseWiki}`);
+              clog(`  ✓ Re-linked orphaned reverse: ${reverseWiki}`);
+              cleanTransferMarkerText(arr);
+              safeCopyToEA([arr]);
+              return;
+            } else {
+              // Reverse exists but isn't orphaned - just update arrays
+              clog(`  ✓ Pair exists and is active, updating arrays`);
+              await pushArr(startPath, "dfd_out", forwardWiki);
+              await pushArr(startPath, "dfd_in", reverseWiki);
+              await pushArr(endPath, "dfd_in", forwardWiki);
+              await pushArr(endPath, "dfd_out", reverseWiki);
+
+              // v1.7.3: Set arrow link to forward transfer
+              arr.link = forwardWiki;
+              clog(`  ✓ Set arrow link: ${forwardWiki}`);
+              cleanTransferMarkerText(arr);
+              safeCopyToEA([arr]);
+              return;
+            }
+          } else {
+            // Reverse doesn't exist - create it
+            clog(`  ℹ️ Paired reverse not found, creating new one`);
+            const newReversePath = await createTransferNote(endPath, startPath, classification, false, `${OBJECT_SEPARATOR}reverse`);
+            const newReverseWiki = shortWiki(newReversePath, view.file.path);
+
+            await setFM(forwardPath, fm => {
+              fm.paired_transfer = newReverseWiki;
+              fm.direction_source = direction.directionSource;
+            });
+
+            await setFM(newReversePath, fm => {
+              fm.object_a = endWiki;
+              fm.object_b = startWiki;
+              fm.paired_transfer = forwardWiki;
+              fm.direction_source = direction.directionSource;
+              if (INCLUDE_FROM_TO_PROPERTIES) {
+                fm.from = endWiki;
+                fm.to = startWiki;
+              }
+            });
+
+            // v1.7.1: Add diagram to _source_diagrams array for both transfers
+            await addSourceDiagram(forwardPath, sourceWiki);
+            await addSourceDiagram(newReversePath, sourceWiki);
+
+            await pushArr(startPath, "dfd_out", forwardWiki);
+            await pushArr(startPath, "dfd_in", newReverseWiki);
+            await pushArr(endPath, "dfd_in", forwardWiki);
+            await pushArr(endPath, "dfd_out", newReverseWiki);
+
+            // v1.7.3: Set arrow link to forward transfer
+            arr.link = forwardWiki;
+            clog(`  ✓ Set arrow link: ${forwardWiki}`);
+
+            note(`✓ Created paired reverse: ${newReverseWiki}`);
+            clog(`  ✓ Created new paired reverse: ${newReversePath}`);
+            cleanTransferMarkerText(arr);
+            safeCopyToEA([arr]);
+            return;
+          }
+        }
       }
+    }
+
+    // v1.7.0: ORPHAN DETECTION - Check for bidirectional → unidirectional conversion
+    // v1.7.1: Now multi-diagram aware - only orphan if no other diagrams reference
+    // v1.7.4: Updated to handle diagram name suffix (use includes instead of endsWith)
+    const wasBidirectional = oldFM.direction_source === "bidirectional";
+    if (wasBidirectional && !bidirectional && BIDIRECTIONAL_MODE === "dual_transfers") {
+      clog(`  ⚠️ Detected bidirectional → unidirectional conversion!`);
+
+      // Check if this is a _forward transfer with a paired _reverse
+      // v1.7.4: Use includes() because diagram name may come after _forward/_reverse suffix
+      const currentFileName = bn(reuseExistingPath);
+      const pairedTransferWiki = oldFM.paired_transfer;
+      const isForwardTransfer = currentFileName.includes("_forward");
+      const isReverseTransfer = currentFileName.includes("_reverse");
+      clog(`  Checking: isForward=${isForwardTransfer}, isReverse=${isReverseTransfer}, paired=${pairedTransferWiki}`);
+
+      if (isForwardTransfer && pairedTransferWiki) {
+        // The _reverse transfer might be orphaned
+        const pairedPath = resolveLink(pairedTransferWiki, view.file.path);
+
+        if (pairedPath && exists(pairedPath)) {
+          // v1.7.1: Check if reverse transfer has multiple source diagrams
+          const pairedFile = app.vault.getAbstractFileByPath(pairedPath);
+          const pairedCache = pairedFile ? app.metadataCache.getFileCache(pairedFile) : null;
+          const pairedFM = pairedCache?.frontmatter || {};
+          const sourceDiagramCount = getSourceDiagramCount(pairedFM);
+
+          if (sourceDiagramCount > 1) {
+            // Multiple diagrams reference this transfer - don't auto-orphan
+            clog(`  ⚠️ Reverse transfer has ${sourceDiagramCount} source diagrams - NOT auto-orphaning`);
+            note(`⚠️ Warning: ${pairedTransferWiki} used by ${sourceDiagramCount} diagrams - review manually`);
+
+            // Still clear paired_transfer since the bidirectional relationship is severed
+            await setFM(reuseExistingPath, fm => {
+              delete fm.paired_transfer;
+            });
+            await setFM(pairedPath, fm => {
+              delete fm.paired_transfer;
+            });
+          } else {
+            // Only one diagram (or none) - safe to orphan
+            clog(`  🗑️ Flagging orphaned reverse transfer: ${pairedPath}`);
+
+            // Flag the reverse transfer as orphaned
+            await setFM(pairedPath, fm => {
+              fm._status = "orphaned";
+              fm._orphan_detected = new Date().toISOString();
+              fm._orphan_reason = "bidirectional_to_unidirectional";
+              fm._last_linked_diagram = sourceWiki;
+              // Clear paired_transfer since the relationship is severed
+              delete fm.paired_transfer;
+            });
+
+            // Also clear paired_transfer from the forward transfer
+            await setFM(reuseExistingPath, fm => {
+              delete fm.paired_transfer;
+            });
+
+            // Remove reverse transfer from dfd_in/dfd_out arrays
+            const reverseWiki = shortWiki(pairedPath, view.file.path);
+            await removeFromArr(startPath, "dfd_in", reverseWiki);
+            await removeFromArr(startPath, "dfd_out", reverseWiki);
+            await removeFromArr(endPath, "dfd_in", reverseWiki);
+            await removeFromArr(endPath, "dfd_out", reverseWiki);
+
+            note(`⚠️ Orphaned: ${pairedTransferWiki} (bidirectional → unidirectional)`);
+          }
+        }
+      } else if (isReverseTransfer && pairedTransferWiki) {
+        // This reverse transfer might be orphaned (arrow now links to _forward)
+        // v1.7.1: Check multi-diagram status
+        const sourceDiagramCount = getSourceDiagramCount(oldFM);
+
+        if (sourceDiagramCount > 1) {
+          clog(`  ⚠️ This reverse has ${sourceDiagramCount} source diagrams - NOT auto-orphaning`);
+          note(`⚠️ Warning: ${currentFileName} used by ${sourceDiagramCount} diagrams - review manually`);
+          await setFM(reuseExistingPath, fm => {
+            delete fm.paired_transfer;
+          });
+        } else {
+          clog(`  🗑️ This reverse transfer is being orphaned`);
+
+          await setFM(reuseExistingPath, fm => {
+            fm._status = "orphaned";
+            fm._orphan_detected = new Date().toISOString();
+            fm._orphan_reason = "bidirectional_to_unidirectional";
+            fm._last_linked_diagram = sourceWiki;
+            delete fm.paired_transfer;
+          });
+
+          note(`⚠️ Orphaned: ${currentFileName} (bidirectional → unidirectional)`);
+          // Don't process further - this transfer is orphaned
+          return;
+        }
+      }
+    }
+
+    // v1.7.0: Clear orphan flag if a previously orphaned transfer is being re-linked
+    if (oldFM._status === "orphaned") {
+      clog(`  ✓ Re-linking previously orphaned transfer`);
+      await setFM(reuseExistingPath, fm => {
+        fm._status = "active";
+        delete fm._orphan_detected;
+        delete fm._orphan_reason;
+        delete fm._last_linked_diagram;
+      });
+      note(`✓ Re-linked: ${bn(reuseExistingPath)} (was orphaned)`);
     }
 
     // Standard case: Update existing transfer (non-bidirectional or single_bidirectional mode)
@@ -1430,17 +2075,26 @@ async function ensureTransfer(arr) {
       const currentFileName = bn(reuseExistingPath);
       const expectedBaseName = generateTransferBaseName(startPath, endPath, bidirectional && BIDIRECTIONAL_MODE === "single_bidirectional");
 
-      // Preserve suffix like _forward, _reverse, or numbering
+      // v1.7.4: Preserve suffix like _forward, _reverse (with any diagram name after)
+      // Also handle numbered suffix
       let suffix = "";
-      if (currentFileName.endsWith("_forward")) {
-        suffix = "_forward";
-      } else if (currentFileName.endsWith("_reverse")) {
-        suffix = "_reverse";
+      if (currentFileName.includes("_forward")) {
+        const idx = currentFileName.indexOf("_forward");
+        suffix = currentFileName.slice(idx); // Gets "_forward" and everything after (e.g., "_forward_test-10-14")
+      } else if (currentFileName.includes("_reverse")) {
+        const idx = currentFileName.indexOf("_reverse");
+        suffix = currentFileName.slice(idx); // Gets "_reverse" and everything after
       } else {
-        // Check for numbered suffix (e.g., _2, _3)
-        const numMatch = currentFileName.match(/_(\d+)$/);
+        // Check for numbered suffix (e.g., _2, _3) - may have diagram name after
+        const numMatch = currentFileName.match(/_(\d+)(_.*)?$/);
         if (numMatch) {
-          suffix = `_${numMatch[1]}`;
+          suffix = `_${numMatch[1]}${numMatch[2] || ""}`;
+        } else if (TRANSFER_INCLUDE_DIAGRAM) {
+          // v1.7.4: May just have diagram name suffix
+          const diagramSlug = slug(bn(view.file.path));
+          if (currentFileName.endsWith(`_${diagramSlug}`)) {
+            suffix = `_${diagramSlug}`;
+          }
         }
       }
 
@@ -1485,12 +2139,14 @@ async function ensureTransfer(arr) {
 
       // Update direction_source
       fm.direction_source = direction.directionSource;
-
-      // Set source_drawing if not already set (additive, don't overwrite)
-      if (!fm.source_drawing) {
-        fm.source_drawing = sourceWiki;
-      }
     });
+
+    // v1.7.1: Add this diagram to _source_diagrams array (handles migration from legacy source_drawing)
+    await addSourceDiagram(reuseExistingPath, sourceWiki);
+
+    // v1.7.3: CRITICAL - Set arrow link to the transfer (was missing!)
+    arr.link = wikiLink;
+    clog(`  ✓ Set arrow link: ${wikiLink}`);
 
     // Update object arrays based on bidirectional mode
     if (bidirectional && BIDIRECTIONAL_MODE === "single_bidirectional") {
@@ -1504,6 +2160,8 @@ async function ensureTransfer(arr) {
     }
 
     note(`✓ Transfer updated: ${wikiLink}`);
+    cleanTransferMarkerText(arr);
+    safeCopyToEA([arr]);
     return;
   }
 
@@ -1519,7 +2177,6 @@ async function ensureTransfer(arr) {
     await setFM(path1, fm => {
       fm.object_a = startWiki;
       fm.object_b = endWiki;
-      fm.source_drawing = sourceWiki;
       fm.paired_transfer = shortWiki(path2, view.file.path);
       fm.direction_source = direction.directionSource;
 
@@ -1532,7 +2189,6 @@ async function ensureTransfer(arr) {
     await setFM(path2, fm => {
       fm.object_a = endWiki;
       fm.object_b = startWiki;
-      fm.source_drawing = sourceWiki;
       fm.paired_transfer = shortWiki(path1, view.file.path);
       fm.direction_source = direction.directionSource;
 
@@ -1541,6 +2197,10 @@ async function ensureTransfer(arr) {
         fm.to = startWiki;
       }
     });
+
+    // v1.7.1: Add diagram to _source_diagrams array for both transfers
+    await addSourceDiagram(path1, sourceWiki);
+    await addSourceDiagram(path2, sourceWiki);
 
     const transferWiki = shortWiki(path1, view.file.path);
     arr.link = transferWiki;
@@ -1566,7 +2226,6 @@ async function ensureTransfer(arr) {
     await setFM(path, fm => {
       fm.object_a = startWiki;
       fm.object_b = endWiki;
-      fm.source_drawing = sourceWiki;
       fm.direction_source = direction.directionSource;
 
       if (INCLUDE_FROM_TO_PROPERTIES) {
@@ -1579,6 +2238,9 @@ async function ensureTransfer(arr) {
         }
       }
     });
+
+    // v1.7.1: Add diagram to _source_diagrams array
+    await addSourceDiagram(path, sourceWiki);
 
     const transferWiki = shortWiki(path, view.file.path);
     arr.link = transferWiki;
@@ -1602,7 +2264,6 @@ async function ensureTransfer(arr) {
     await setFM(path, fm => {
       fm.object_a = startWiki;
       fm.object_b = endWiki;
-      fm.source_drawing = sourceWiki;
       fm.direction_source = direction.directionSource;
 
       if (INCLUDE_FROM_TO_PROPERTIES) {
@@ -1610,6 +2271,9 @@ async function ensureTransfer(arr) {
         fm.to = endWiki;
       }
     });
+
+    // v1.7.1: Add diagram to _source_diagrams array
+    await addSourceDiagram(path, sourceWiki);
 
     const transferWiki = shortWiki(path, view.file.path);
     arr.link = transferWiki;
@@ -1632,18 +2296,22 @@ async function ensureTransfer(arr) {
     }
   };
 
+  // v1.7.3: Clean "transfer" marker text from arrow (refactored to helper)
+  cleanTransferMarkerText(arr);
   safeCopyToEA([arr]);
 }
 
 /* ---------- main execution ---------- */
 (async () => {
-  clog("\n🚀 Starting Linkify DFD v1.6.3");
+  clog("\n🚀 Starting Linkify DFD v1.7.4");
   clog(`📋 Explicit markers required: ${REQUIRE_EXPLICIT_MARKER}`);
   clog(`📋 Smart custom name matching: ${SMART_CUSTOM_NAME_MATCHING}`);
   clog(`📋 Search all subfolders: ${SEARCH_ALL_SUBFOLDERS}`);
   clog(`📋 Direction determination: ${DIRECTION_DETERMINATION}`);
   clog(`📋 Bidirectional mode: ${BIDIRECTIONAL_MODE}`);
-  clog(`📋 Transfer numbering mode: ${TRANSFER_NUMBERING_MODE}`);
+  clog(`📋 Transfer reuse mode: ${TRANSFER_REUSE_MODE}`);
+  clog(`📋 Transfer naming: include_diagram=${TRANSFER_INCLUDE_DIAGRAM}, position=${TRANSFER_POSITION}, collision=${TRANSFER_COLLISION_MODE}`);
+  clog(`📋 Clean marker text: ${CLEAN_MARKER_TEXT}`);
 
   // Process nodes first
   const nodeElements = els.filter(e => e.type !== "arrow");
@@ -1665,8 +2333,8 @@ async function ensureTransfer(arr) {
   }
 
   await ea.addElementsToView(false, true, true, true);
-  clog("\n✅ Linkify DFD v1.6.3: finished");
-  note("Linkify DFD v1.6.3: finished");
+  clog("\n✅ Linkify DFD v1.7.3: finished");
+  note("Linkify DFD v1.7.3: finished");
 
   // Flush debug log to file
   await flushDebugLog();
