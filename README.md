@@ -168,12 +168,6 @@ to: "[[analytics-platform]]"
 
 ## Documentation
 
-### User Guides
-
-- [Data Flow Diagram Procedure (Data Stewards)](Data%20Flow%20Diagram%20Procedure%20(Data%20Stewards)/Data%20Flow%20Diagram%20Procedure%20(Data%20Stewards).md) - Step-by-step guide for data stewards
-- [Data Flow Discovery Engagement Job Aid](Data%20Flow%20Discovery%20Engagement%20Job%20Aid/Data%20Flow%20Discovery%20Engagement%20Job%20Aid.md) - Facilitation guide for discovery sessions
-- [Data Flow Audit Procedure](Data%20Flow%20Audit%20Procedure/Data%20Flow%20Audit%20Procedure.md) - Technical audit process
-
 ### Technical Documentation
 
 - [DFD System Architecture](DFD%20System%20Architecture.md) - High-level design, data model, algorithms
@@ -516,23 +510,31 @@ We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 See [GitHub Projects](https://github.com/yourusername/dfd-system/projects) for planned features.
 
-**Short-term (v1.6-2.0)**:
+**Short-term (v1.7-2.0)**:
 - [ ] Configurable schemas from config files
 - [ ] Bulk delete with trash folder
 - [ ] Transfer link cleanup improvements
 - [ ] Validation warnings for unconnected assets
+- [ ] Cross-naming-scheme matching (transition between naming modes)
 
 **Medium-term (v2.x)**:
 - [ ] Bi-directional sync: Database → Diagram updates
 - [ ] CSV import: Generate diagrams from spreadsheets
 - [ ] Bases shape library: Searchable, filterable
 - [ ] Template diagrams for common patterns
+- [ ] Interactive plugin mode with modals for reuse decisions
 
 **Long-term (v3.x+)**:
 - [ ] Real-time collaboration
 - [ ] Risk scoring engine
 - [ ] Compliance framework mapping (NIST, ISO, SOC 2)
 - [ ] AI-assisted diagramming
+
+**Documentation (Planned)**:
+- [ ] Data Flow Diagram Procedure for Data Stewards
+- [ ] Data Flow Discovery Engagement Job Aid
+- [ ] Data Flow Audit Procedure
+- [ ] Implementation guides with examples
 
 ---
 
