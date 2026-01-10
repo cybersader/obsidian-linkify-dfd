@@ -5,6 +5,15 @@ All notable changes to the DFD-Excalidraw-System project will be documented in t
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.5] - 2026-01-10
+
+### Added
+- `TRANSFER_FUZZY_MATCH` setting for cross-naming-scheme matching
+  - `false` (default): Only match transfers using current naming scheme
+  - `true`: Match any transfer with same endpoints, regardless of naming scheme
+- Helps when transitioning between `TRANSFER_INCLUDE_DIAGRAM = true/false`
+- Note: Explicit `transfer=reuse` marker always uses fuzzy matching (ignores this setting)
+
 ## [1.7.4] - 2026-01-09
 
 ### Changed
