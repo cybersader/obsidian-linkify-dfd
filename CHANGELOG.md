@@ -263,6 +263,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Detect `transfer_a_to_b` could match existing `transfer_a_to_b_diagram-name.md`
   - Prompt: "Found existing transfer with diagram suffix. Use it or create new?"
   - Helps users transition between `TRANSFER_INCLUDE_DIAGRAM` true/false
+- **Diagram rename handling**: When diagram name changes, transfers become orphaned
+  - Problem: `transfer_a_to_b_old-name.md` won't match lookups from `new-name.excalidraw`
+  - Solution options:
+    1. Stable diagram UUID in frontmatter (persists through renames)
+    2. Migration script to bulk-update `_source_diagrams` and filenames
+    3. Prompt: "Diagram renamed. Update X transfers to new name?"
+  - Current workaround: Existing arrow links preserved; only new arrows affected
 
 ### v2.1 (Future - Smart Context Detection)
 - Detect if diagrams are in same folder = more likely same context
