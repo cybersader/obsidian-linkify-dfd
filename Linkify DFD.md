@@ -7,7 +7,7 @@ date modified: 2025-11-22T00:00:00-05:00
 /*
 ```js*/
 /*****************************************************************
- * Linkify DFD — v1.7.7  (2026-01-12)
+ * Linkify DFD — v1.7.8  (2026-01-12)
  * ---------------------------------------------------------------
  * COMPATIBILITY:
  *   - Tested with: Excalidraw 2.19.0
@@ -15,6 +15,13 @@ date modified: 2025-11-22T00:00:00-05:00
  *   - See .claude/research/excalidraw-dependency.md for API changes
  * ---------------------------------------------------------------
  * CHANGELOG:
+ *
+ * v1.7.8 (2026-01-12)
+ *   - Added: Assets and entities now store source_diagram_ids (UUID) alongside source_drawings
+ *           Consistent with transfers which already had _source_diagram_ids
+ *           New helper function: addSourceDiagramToNode()
+ *   - Benefit: All object types now have rename-proof diagram identity tracking
+ *   - Breaking: None - adds new frontmatter field without removing existing ones
  *
  * v1.7.7 (2026-01-12)
  *   - Fixed: UUID detection now checks for Excalidraw frontmatter instead of file extension
@@ -742,6 +749,39 @@ async function ensureDiagramUUID(diagramFile) {
   return newUUID;
 }
 
+// v1.7.8: Helper to add diagram to source_drawings array for assets/entities
+// Also stores diagram UUID in source_diagram_ids array (parallel to transfer's _source_diagram_ids)
+async function addSourceDiagramToNode(fp, sourceWiki, sourceUUID = null) {
+  await setFM(fp, fm => {
+    // Ensure source_drawings array exists
+    if (!fm.source_drawings) {
+      fm.source_drawings = [];
+    } else if (!Array.isArray(fm.source_drawings)) {
+      fm.source_drawings = [fm.source_drawings];
+    }
+
+    // Add current diagram wiki link if not already present
+    if (!fm.source_drawings.includes(sourceWiki)) {
+      fm.source_drawings.push(sourceWiki);
+      clog(`  📍 Added to source_drawings: ${sourceWiki}`);
+    }
+
+    // v1.7.8: Also store diagram UUID for rename-proof matching
+    if (sourceUUID) {
+      if (!fm.source_diagram_ids) {
+        fm.source_diagram_ids = [];
+      } else if (!Array.isArray(fm.source_diagram_ids)) {
+        fm.source_diagram_ids = [fm.source_diagram_ids];
+      }
+
+      if (!fm.source_diagram_ids.includes(sourceUUID)) {
+        fm.source_diagram_ids.push(sourceUUID);
+        clog(`  🔑 Added to source_diagram_ids: ${sourceUUID}`);
+      }
+    }
+  });
+}
+
 // v1.7.1: Helper to add diagram to _source_diagrams array with migration from legacy source_drawing
 // v1.7.6: Also stores diagram UUID in _source_diagram_ids array
 async function addSourceDiagram(fp, sourceWiki, sourceUUID = null) {
@@ -1294,10 +1334,9 @@ async function ensureNodeLinked(el, kind, customName, existingPath = null, bound
     largest.link = wikiLink;
     safeCopyToEA([largest]);
 
-    // Track which diagrams this node appears in
+    // Track which diagrams this node appears in (v1.7.8: also store UUID)
     const sourceWiki = shortWiki(view.file.path, view.file.path);
-    await pushArr(existingPath, "source_drawings", sourceWiki);
-    clog(`  📍 Added source_drawing: ${sourceWiki}`);
+    await addSourceDiagramToNode(existingPath, sourceWiki, diagramUUID);
 
     return existingPath;
   }
@@ -1322,10 +1361,9 @@ async function ensureNodeLinked(el, kind, customName, existingPath = null, bound
       largest.link = wikiLink;
       safeCopyToEA([largest]);
 
-      // Track which diagrams this node appears in
+      // Track which diagrams this node appears in (v1.7.8: also store UUID)
       const sourceWiki = shortWiki(view.file.path, view.file.path);
-      await pushArr(actualPath, "source_drawings", sourceWiki);
-      clog(`  📍 Added source_drawing: ${sourceWiki}`);
+      await addSourceDiagramToNode(actualPath, sourceWiki, diagramUUID);
 
       return actualPath;
     } else {
@@ -1415,10 +1453,9 @@ async function ensureNodeLinked(el, kind, customName, existingPath = null, bound
         clog(`  ⏭️ Skipping text modification - already modified: ${boundTextElementId}`);
       }
 
-      // Track which diagrams this node appears in
+      // Track which diagrams this node appears in (v1.7.8: also store UUID)
       const sourceWiki = shortWiki(view.file.path, view.file.path);
-      await pushArr(existingByName, "source_drawings", sourceWiki);
-      clog(`  📍 Added source_drawing: ${sourceWiki}`);
+      await addSourceDiagramToNode(existingByName, sourceWiki, diagramUUID);
 
       note(`✓ ${kind} (reused) → ${wikiLink}`);
       clog(`  ✓ Linked to existing ${kind} → ${wikiLink}`);
@@ -1512,10 +1549,9 @@ async function ensureNodeLinked(el, kind, customName, existingPath = null, bound
     clog(`  ⏭️ Skipping elementsDict modification - already done: ${boundTextElementId}`);
   }
 
-  // Track which diagrams this node appears in (for new notes)
+  // Track which diagrams this node appears in (v1.7.8: also store UUID)
   const sourceWiki = shortWiki(view.file.path, view.file.path);
-  await pushArr(path, "source_drawings", sourceWiki);
-  clog(`  📍 Added source_drawing: ${sourceWiki}`);
+  await addSourceDiagramToNode(path, sourceWiki, diagramUUID);
 
   note(`✓ ${kind} (new) → ${wikiLink}`);
   clog(`  ✓ Linked ${kind} → ${wikiLink}`);
@@ -2441,7 +2477,7 @@ async function ensureTransfer(arr) {
 let diagramUUID = null;
 
 (async () => {
-  clog("\n🚀 Starting Linkify DFD v1.7.7");
+  clog("\n🚀 Starting Linkify DFD v1.7.8");
   clog(`📋 Explicit markers required: ${REQUIRE_EXPLICIT_MARKER}`);
   clog(`📋 Smart custom name matching: ${SMART_CUSTOM_NAME_MATCHING}`);
   clog(`📋 Search all subfolders: ${SEARCH_ALL_SUBFOLDERS}`);
@@ -2480,8 +2516,8 @@ let diagramUUID = null;
   }
 
   await ea.addElementsToView(false, true, true, true);
-  clog("\n✅ Linkify DFD v1.7.7: finished");
-  note("Linkify DFD v1.7.7: finished");
+  clog("\n✅ Linkify DFD v1.7.8: finished");
+  note("Linkify DFD v1.7.8: finished");
 
   // Flush debug log to file
   await flushDebugLog();
