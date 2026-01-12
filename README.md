@@ -59,17 +59,30 @@ Analysis & Reporting (Dataview, CSV)
 - [Excalidraw Plugin](https://github.com/zsviczian/obsidian-excalidraw-plugin) for Obsidian
 - [Excalidraw Automate](https://github.com/zsviczian/obsidian-excalidraw-plugin) (included with Excalidraw plugin)
 
-#### Excalidraw Plugin Settings (Required for v1.7.6+)
+#### Excalidraw File Formats (v1.7.7+)
 
-For **stable diagram identity** (rename-proof transfer ownership), configure these settings:
+The DFD system works with Excalidraw's markdown-based file formats:
 
-1. **Settings → Excalidraw → Saving → Excalidraw file format**:
-   - Select: **"Excalidraw Markdown (.excalidraw.md)"**
-   - This enables frontmatter storage for diagram UUID
+| Format | Frontmatter | UUID Support | Notes |
+|--------|-------------|--------------|-------|
+| `.md` | ✅ Yes | ✅ Yes | **2025 default** - recommended |
+| `.excalidraw.md` | ✅ Yes | ✅ Yes | Original Obsidian format |
+| `.excalidraw` | ❌ No | ❌ No | Pure JSON - legacy format |
 
-2. **Optional - Auto-convert existing files**:
-   - Settings → Excalidraw → Saving → Auto-convert legacy files: **Enable**
-   - Or manually convert: Command palette → "Excalidraw: Convert to .excalidraw.md"
+> **Note**: The script detects Excalidraw files by checking for `excalidraw-plugin: parsed` in frontmatter, not by file extension. This means renamed files (e.g., `diagram.excalidraw.md` → `diagram.md`) continue to work.
+
+#### Excalidraw Plugin Settings (Required)
+
+| Setting | Value | Why |
+|---------|-------|-----|
+| Excalidraw file format | `.md` or `.excalidraw.md` | Both support UUID (frontmatter required) |
+| Compress Excalidraw JSON | **OFF** | Script needs to read element data |
+| Auto-export (Compatibility Mode) | Your preference | Optional - syncs `.excalidraw` for external tools |
+
+**Recommended workflow**:
+1. Use `.md` format (2025 default) or `.excalidraw.md`
+2. Enable Compatibility Mode if you need `.excalidraw` exports for external tools
+3. UUID is automatically stored in frontmatter as `dfd_diagram_id`
 
 > **Note**: Pure `.excalidraw` files (JSON format) will still work but cannot store UUIDs. The script falls back to wiki link matching, which breaks if you rename the diagram.
 
