@@ -301,6 +301,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Roadmap
 
+### v1.7.x (Remaining Script Improvements)
+
+**Shape-Based Auto-Classification** (user request):
+- Setting: `AUTO_CLASSIFY_BY_SHAPE` (true/false)
+- When enabled, skip explicit markers - classify by shape type:
+  - Rectangle → Asset
+  - Circle/Ellipse → Entity
+  - Arrow → Transfer
+- Still honor explicit markers when present (override)
+- Benefit: Faster diagramming, less typing `asset=` and `entity=`
+
+**Diagram Format Normalization** (warning mode for v1.7.x):
+- Warn when diagram extension doesn't match Excalidraw plugin setting
+- Full auto-fix deferred to v2.0
+
 ### v2.0 (Future - Plugin Interactive Mode)
 - Modal: "Transfer from X to Y exists. Reuse or create new?"
 - Settings UI for default behavior
@@ -335,3 +350,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - "This transfer is same context as [[other-transfer]]"
 - Copy frontmatter properties from parent
 - Linked context chains
+
+### v2.x (Future - Advanced Features)
+
+**Batch Processing Selected Elements**:
+- Script variant that processes only selected shapes/arrows
+- Use case: Incrementally link parts of a diagram
+- Complexity: High (edge cases with partial selections, arrows to unselected nodes)
+- May need interactive prompts for ambiguous cases
+
+### Documentation Backlog
+
+**DFD Schema Recovery Guide**:
+- Guide for fixing messed up DFD object schemas
+- Common issues: orphaned transfers, broken frontmatter, schema version mismatches
+- Recovery procedures: bulk reset, migration scripts, validation queries
+- Dataview queries for detecting schema problems
