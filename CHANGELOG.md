@@ -300,12 +300,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ~~**Diagram rename handling**~~ → ✅ **Implemented in v1.7.6** via stable UUID
   - Diagrams now have `dfd_diagram_id` in frontmatter (persists through renames)
   - Transfers track `_source_diagram_ids` for rename-proof ownership matching
-- **Diagram extension normalization**
-  - Detect when diagram extension doesn't match Excalidraw plugin setting
-  - Example: Plugin set to `.excalidraw.md` but file is `.md` (from accidental rename)
-  - Script setting: `AUTO_FIX_DIAGRAM_EXTENSION` - auto-rename to match plugin format
-  - Or warn: "Diagram extension (.md) doesn't match plugin setting (.excalidraw.md)"
-  - Keeps diagrams consistent with Excalidraw plugin configuration
+- **Diagram format normalization**
+  - Script setting: `AUTO_FIX_DIAGRAM_FORMAT` with options:
+    - `"off"` - No auto-fix, just process as-is
+    - `"warn"` - Warn about format mismatches
+    - `"fix"` - Auto-convert to match plugin setting
+  - **Case 1: Markdown extension mismatch**
+    - Plugin set to `.excalidraw.md` but file is `.md` (from accidental rename), or vice versa
+    - Auto-rename to match configured extension
+  - **Case 2: Legacy `.excalidraw` JSON file**
+    - Downloaded/imported `.excalidraw` file needs conversion to markdown format
+    - Convert to `.md` or `.excalidraw.md` (based on plugin setting) to enable frontmatter/UUID
+    - Uses Excalidraw plugin's conversion API if available
+  - Ensures all diagrams support frontmatter features (UUID, metadata)
 
 ### v2.1 (Future - Smart Context Detection)
 - Detect if diagrams are in same folder = more likely same context
