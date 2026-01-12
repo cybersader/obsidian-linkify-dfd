@@ -5,11 +5,27 @@ All notable changes to the DFD-Excalidraw-System project will be documented in t
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.7] - 2026-01-12
+
+### Fixed
+- **UUID detection now checks for Excalidraw frontmatter instead of file extension**
+  - Works with both `.excalidraw.md` AND `.md` files (2025 Excalidraw default)
+  - Checks for `excalidraw-plugin` key in frontmatter (standard Excalidraw marker)
+  - Fixes issue where accidental rename (dropping `.excalidraw`) broke UUID support
+
+### Changed
+- Log messages updated to reference frontmatter detection instead of file extension
+
+### Documentation
+- Added file format comparison table to README
+- Documented Excalidraw plugin compatibility mode recommendation
+- Added Test 10.23 for `.md` format UUID verification
+
 ## [1.7.6] - 2026-01-12
 
 ### Added
 - **Stable diagram UUID for rename-proof transfer ownership**
-  - Stores `dfd_diagram_id` in diagram frontmatter (requires `.excalidraw.md` format)
+  - Stores `dfd_diagram_id` in diagram frontmatter (requires Excalidraw markdown format)
   - Transfers store `_source_diagram_ids` array alongside existing `_source_diagrams`
   - Lookup priority: UUID match first, then wiki link fallback, then legacy field
 - New helper functions: `generateUUID()`, `ensureDiagramUUID()`
@@ -17,11 +33,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - When diagram is renamed, transfers are still found via UUID match
   - Previously, transfers became orphaned when diagram name changed
-- Pure `.excalidraw` files (no frontmatter support) fall back to wiki link matching
+- Pure `.excalidraw` files (JSON, no frontmatter) fall back to wiki link matching
 
 ### Prerequisites
-- Excalidraw plugin setting: "Excalidraw file format" = "Excalidraw Markdown (.excalidraw.md)"
-- Settings → Saving → Excalidraw file format → Select the markdown option
+- Excalidraw markdown format (`.md` or `.excalidraw.md`) required for UUID support
+- Settings → Saving → Excalidraw file format → Select a markdown option
 
 ## [1.7.5] - 2026-01-10
 
