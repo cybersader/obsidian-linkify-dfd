@@ -7,7 +7,7 @@ date modified: 2025-11-22T00:00:00-05:00
 /*
 ```js*/
 /*****************************************************************
- * Linkify DFD — v1.7.5  (2026-01-10)
+ * Linkify DFD — v1.7.6  (2026-01-12)
  * ---------------------------------------------------------------
  * COMPATIBILITY:
  *   - Tested with: Excalidraw 2.19.0
@@ -15,6 +15,16 @@ date modified: 2025-11-22T00:00:00-05:00
  *   - See .claude/research/excalidraw-dependency.md for API changes
  * ---------------------------------------------------------------
  * CHANGELOG:
+ *
+ * v1.7.6 (2026-01-12)
+ *   - Added: Stable diagram UUID for rename-proof transfer ownership
+ *           Stores dfd_diagram_id in diagram frontmatter (requires .excalidraw.md format)
+ *           Transfers store _source_diagram_ids array alongside _source_diagrams
+ *   - Benefit: When diagram is renamed, transfers still found via UUID match
+ *           (Previously, transfers became orphaned when diagram name changed)
+ *   - Lookup priority: UUID match first, then wiki link fallback, then legacy field
+ *   - Note: Pure .excalidraw files (no frontmatter) fall back to wiki link matching
+ *   - Prereq: Excalidraw plugin setting "Excalidraw file format" = "Excalidraw Markdown"
  *
  * v1.7.5 (2026-01-10)
  *   - Added: TRANSFER_FUZZY_MATCH setting for cross-naming-scheme matching
@@ -687,8 +697,45 @@ async function removeFromArr(fp, key, value) {
   });
 }
 
+// v1.7.6: Generate UUID v4 for stable diagram identity
+function generateUUID() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+}
+
+// v1.7.6: Get or create stable diagram UUID from frontmatter
+// Returns null for .excalidraw files (no frontmatter support)
+async function ensureDiagramUUID(diagramFile) {
+  // Check if file supports frontmatter (.excalidraw.md format)
+  if (!diagramFile.path.endsWith('.excalidraw.md')) {
+    clog(`  ⚠️ Diagram is .excalidraw format - no UUID support. Convert to .excalidraw.md for stable identity.`);
+    return null;
+  }
+
+  const cache = app.metadataCache.getFileCache(diagramFile);
+  const fm = cache?.frontmatter;
+
+  if (fm?.dfd_diagram_id) {
+    clog(`  🔑 Found existing diagram UUID: ${fm.dfd_diagram_id}`);
+    return fm.dfd_diagram_id;
+  }
+
+  // Generate and store new UUID
+  const newUUID = generateUUID();
+  clog(`  🔑 Generating new diagram UUID: ${newUUID}`);
+
+  await app.fileManager.processFrontMatter(diagramFile, fm => {
+    fm.dfd_diagram_id = newUUID;
+  });
+
+  return newUUID;
+}
+
 // v1.7.1: Helper to add diagram to _source_diagrams array with migration from legacy source_drawing
-async function addSourceDiagram(fp, sourceWiki) {
+// v1.7.6: Also stores diagram UUID in _source_diagram_ids array
+async function addSourceDiagram(fp, sourceWiki, sourceUUID = null) {
   await setFM(fp, fm => {
     // Migrate from legacy source_drawing (singular) to _source_diagrams (array)
     if (fm.source_drawing && !fm._source_diagrams) {
@@ -698,19 +745,33 @@ async function addSourceDiagram(fp, sourceWiki) {
       delete fm.source_drawing;  // Remove legacy field
     }
 
-    // Ensure array exists
+    // Ensure wiki link array exists
     if (!fm._source_diagrams) {
       fm._source_diagrams = [];
     } else if (!Array.isArray(fm._source_diagrams)) {
       fm._source_diagrams = [fm._source_diagrams];
     }
 
-    // Add current diagram if not already present
+    // Add current diagram wiki link if not already present
     if (!fm._source_diagrams.includes(sourceWiki)) {
       fm._source_diagrams.push(sourceWiki);
       clog(`  📍 Added to _source_diagrams: ${sourceWiki} (now ${fm._source_diagrams.length} diagrams)`);
     } else {
       clog(`  📍 Already in _source_diagrams: ${sourceWiki}`);
+    }
+
+    // v1.7.6: Also store diagram UUID for rename-proof matching
+    if (sourceUUID) {
+      if (!fm._source_diagram_ids) {
+        fm._source_diagram_ids = [];
+      } else if (!Array.isArray(fm._source_diagram_ids)) {
+        fm._source_diagram_ids = [fm._source_diagram_ids];
+      }
+
+      if (!fm._source_diagram_ids.includes(sourceUUID)) {
+        fm._source_diagram_ids.push(sourceUUID);
+        clog(`  🔑 Added to _source_diagram_ids: ${sourceUUID}`);
+      }
     }
   });
 }
@@ -728,17 +789,31 @@ function getSourceDiagramCount(fm) {
 }
 
 // v1.7.2: Check if a transfer is owned by (was created from) the current diagram
-// Returns true if current diagram is in _source_diagrams array
-function isTransferOwnedByCurrentDiagram(fm, currentDiagramWiki) {
+// v1.7.6: Now checks UUID first (survives diagram renames), then falls back to wiki link
+function isTransferOwnedByCurrentDiagram(fm, currentDiagramWiki, currentDiagramUUID = null) {
+  // Priority 1: Check UUID match (stable, survives renames)
+  if (currentDiagramUUID && fm._source_diagram_ids) {
+    const ids = Array.isArray(fm._source_diagram_ids) ? fm._source_diagram_ids : [fm._source_diagram_ids];
+    if (ids.includes(currentDiagramUUID)) {
+      clog(`    🔑 UUID match: ${currentDiagramUUID}`);
+      return true;
+    }
+  }
+
+  // Priority 2: Check wiki link match (fallback for older transfers or .excalidraw files)
   if (fm._source_diagrams) {
     const diagrams = Array.isArray(fm._source_diagrams) ? fm._source_diagrams : [fm._source_diagrams];
-    return diagrams.includes(currentDiagramWiki);
+    if (diagrams.includes(currentDiagramWiki)) {
+      return true;
+    }
   }
-  // Legacy field
+
+  // Legacy field fallback
   if (fm.source_drawing) {
     const legacyValue = fm.source_drawing.toString();
     return legacyValue.includes(currentDiagramWiki) || legacyValue.includes(bn(currentDiagramWiki));
   }
+
   return false;
 }
 
@@ -763,8 +838,9 @@ function matchesCurrentNamingScheme(fileName, corePattern, diagramSlug) {
 }
 
 // v1.7.2: Find existing transfer between two objects created by the current diagram
+// v1.7.6: Now accepts UUID for rename-proof matching
 // Returns path if found, null otherwise
-async function findExistingTransferForDiagram(folder, objAName, objBName, currentDiagramWiki) {
+async function findExistingTransferForDiagram(folder, objAName, objBName, currentDiagramWiki, currentDiagramUUID = null) {
   const transferFolder = app.vault.getAbstractFileByPath(folder);
   if (!transferFolder || !transferFolder.children) {
     return null;
@@ -803,8 +879,9 @@ async function findExistingTransferForDiagram(folder, objAName, objBName, curren
     const cache = app.metadataCache.getFileCache(file);
     const fm = cache?.frontmatter;
 
-    if (fm && isTransferOwnedByCurrentDiagram(fm, currentDiagramWiki)) {
-      clog(`  v1.7.3: Found existing transfer owned by this diagram: ${file.path}`);
+    // v1.7.6: Pass UUID for rename-proof matching
+    if (fm && isTransferOwnedByCurrentDiagram(fm, currentDiagramWiki, currentDiagramUUID)) {
+      clog(`  v1.7.6: Found existing transfer owned by this diagram: ${file.path}`);
       return file.path;
     }
   }
@@ -1723,12 +1800,13 @@ async function ensureTransfer(arr) {
   }
 
   // v1.7.2: Check if THIS diagram already has a transfer for these objects (same-diagram reuse)
+  // v1.7.6: Now uses UUID for rename-proof matching
   if (!reuseExistingPath) {
     const transferFolder = getTargetFolder("transfer");
-    const ownedTransfer = await findExistingTransferForDiagram(transferFolder, bn(startPath), bn(endPath), sourceWiki);
+    const ownedTransfer = await findExistingTransferForDiagram(transferFolder, bn(startPath), bn(endPath), sourceWiki, diagramUUID);
     if (ownedTransfer) {
       reuseExistingPath = ownedTransfer;
-      clog(`  v1.7.2: Found existing transfer owned by this diagram: ${ownedTransfer}`);
+      clog(`  v1.7.6: Found existing transfer owned by this diagram: ${ownedTransfer}`);
     }
   }
 
@@ -1802,8 +1880,8 @@ async function ensureTransfer(arr) {
         });
 
         // v1.7.1: Add diagram to _source_diagrams array for both transfers
-        await addSourceDiagram(forwardPath, sourceWiki);
-        await addSourceDiagram(reversePath, sourceWiki);
+        await addSourceDiagram(forwardPath, sourceWiki, diagramUUID);
+        await addSourceDiagram(reversePath, sourceWiki, diagramUUID);
 
         // Step 5: Update arrow link to new forward path
         arr.link = forwardWiki;
@@ -1962,8 +2040,8 @@ async function ensureTransfer(arr) {
             });
 
             // v1.7.1: Add diagram to _source_diagrams array for both transfers
-            await addSourceDiagram(forwardPath, sourceWiki);
-            await addSourceDiagram(newReversePath, sourceWiki);
+            await addSourceDiagram(forwardPath, sourceWiki, diagramUUID);
+            await addSourceDiagram(newReversePath, sourceWiki, diagramUUID);
 
             await pushArr(startPath, "dfd_out", forwardWiki);
             await pushArr(startPath, "dfd_in", newReverseWiki);
@@ -2190,7 +2268,7 @@ async function ensureTransfer(arr) {
     });
 
     // v1.7.1: Add this diagram to _source_diagrams array (handles migration from legacy source_drawing)
-    await addSourceDiagram(reuseExistingPath, sourceWiki);
+    await addSourceDiagram(reuseExistingPath, sourceWiki, diagramUUID);
 
     // v1.7.3: CRITICAL - Set arrow link to the transfer (was missing!)
     arr.link = wikiLink;
@@ -2247,8 +2325,8 @@ async function ensureTransfer(arr) {
     });
 
     // v1.7.1: Add diagram to _source_diagrams array for both transfers
-    await addSourceDiagram(path1, sourceWiki);
-    await addSourceDiagram(path2, sourceWiki);
+    await addSourceDiagram(path1, sourceWiki, diagramUUID);
+    await addSourceDiagram(path2, sourceWiki, diagramUUID);
 
     const transferWiki = shortWiki(path1, view.file.path);
     arr.link = transferWiki;
@@ -2288,7 +2366,7 @@ async function ensureTransfer(arr) {
     });
 
     // v1.7.1: Add diagram to _source_diagrams array
-    await addSourceDiagram(path, sourceWiki);
+    await addSourceDiagram(path, sourceWiki, diagramUUID);
 
     const transferWiki = shortWiki(path, view.file.path);
     arr.link = transferWiki;
@@ -2321,7 +2399,7 @@ async function ensureTransfer(arr) {
     });
 
     // v1.7.1: Add diagram to _source_diagrams array
-    await addSourceDiagram(path, sourceWiki);
+    await addSourceDiagram(path, sourceWiki, diagramUUID);
 
     const transferWiki = shortWiki(path, view.file.path);
     arr.link = transferWiki;
@@ -2350,8 +2428,11 @@ async function ensureTransfer(arr) {
 }
 
 /* ---------- main execution ---------- */
+// v1.7.6: Module-level diagram UUID (initialized in main block)
+let diagramUUID = null;
+
 (async () => {
-  clog("\n🚀 Starting Linkify DFD v1.7.4");
+  clog("\n🚀 Starting Linkify DFD v1.7.6");
   clog(`📋 Explicit markers required: ${REQUIRE_EXPLICIT_MARKER}`);
   clog(`📋 Smart custom name matching: ${SMART_CUSTOM_NAME_MATCHING}`);
   clog(`📋 Search all subfolders: ${SEARCH_ALL_SUBFOLDERS}`);
@@ -2361,6 +2442,14 @@ async function ensureTransfer(arr) {
   clog(`📋 Transfer naming: include_diagram=${TRANSFER_INCLUDE_DIAGRAM}, position=${TRANSFER_POSITION}, collision=${TRANSFER_COLLISION_MODE}`);
   clog(`📋 Transfer fuzzy match: ${TRANSFER_FUZZY_MATCH}`);
   clog(`📋 Clean marker text: ${CLEAN_MARKER_TEXT}`);
+
+  // v1.7.6: Get or create stable diagram UUID for rename-proof transfer ownership
+  diagramUUID = await ensureDiagramUUID(view.file);
+  if (diagramUUID) {
+    clog(`📋 Diagram UUID: ${diagramUUID}`);
+  } else {
+    clog(`📋 Diagram UUID: (not available - .excalidraw format)`);
+  }
 
   // Process nodes first
   const nodeElements = els.filter(e => e.type !== "arrow");
@@ -2382,8 +2471,8 @@ async function ensureTransfer(arr) {
   }
 
   await ea.addElementsToView(false, true, true, true);
-  clog("\n✅ Linkify DFD v1.7.3: finished");
-  note("Linkify DFD v1.7.3: finished");
+  clog("\n✅ Linkify DFD v1.7.6: finished");
+  note("Linkify DFD v1.7.6: finished");
 
   // Flush debug log to file
   await flushDebugLog();
