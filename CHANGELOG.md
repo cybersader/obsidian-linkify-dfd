@@ -5,6 +5,18 @@ All notable changes to the DFD-Excalidraw-System project will be documented in t
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.8] - 2026-01-12
+
+### Added
+- **Assets and entities now store `source_diagram_ids` (UUID) alongside `source_drawings`**
+  - Consistent with transfers which already had `_source_diagram_ids`
+  - New helper function: `addSourceDiagramToNode()`
+  - All object types now have rename-proof diagram identity tracking
+
+### Changed
+- Replaced `pushArr()` calls with `addSourceDiagramToNode()` for assets/entities
+- Assets/entities frontmatter now includes `source_diagram_ids` array
+
 ## [1.7.7] - 2026-01-12
 
 ### Fixed
