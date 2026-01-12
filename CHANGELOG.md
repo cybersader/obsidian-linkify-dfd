@@ -5,6 +5,24 @@ All notable changes to the DFD-Excalidraw-System project will be documented in t
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.6] - 2026-01-12
+
+### Added
+- **Stable diagram UUID for rename-proof transfer ownership**
+  - Stores `dfd_diagram_id` in diagram frontmatter (requires `.excalidraw.md` format)
+  - Transfers store `_source_diagram_ids` array alongside existing `_source_diagrams`
+  - Lookup priority: UUID match first, then wiki link fallback, then legacy field
+- New helper functions: `generateUUID()`, `ensureDiagramUUID()`
+
+### Changed
+- When diagram is renamed, transfers are still found via UUID match
+  - Previously, transfers became orphaned when diagram name changed
+- Pure `.excalidraw` files (no frontmatter support) fall back to wiki link matching
+
+### Prerequisites
+- Excalidraw plugin setting: "Excalidraw file format" = "Excalidraw Markdown (.excalidraw.md)"
+- Settings → Saving → Excalidraw file format → Select the markdown option
+
 ## [1.7.5] - 2026-01-10
 
 ### Added
@@ -263,13 +281,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Detect `transfer_a_to_b` could match existing `transfer_a_to_b_diagram-name.md`
   - Prompt: "Found existing transfer with diagram suffix. Use it or create new?"
   - Helps users transition between `TRANSFER_INCLUDE_DIAGRAM` true/false
-- **Diagram rename handling**: When diagram name changes, transfers become orphaned
-  - Problem: `transfer_a_to_b_old-name.md` won't match lookups from `new-name.excalidraw`
-  - Solution options:
-    1. Stable diagram UUID in frontmatter (persists through renames)
-    2. Migration script to bulk-update `_source_diagrams` and filenames
-    3. Prompt: "Diagram renamed. Update X transfers to new name?"
-  - Current workaround: Existing arrow links preserved; only new arrows affected
+- ~~**Diagram rename handling**~~ → ✅ **Implemented in v1.7.6** via stable UUID
+  - Diagrams now have `dfd_diagram_id` in frontmatter (persists through renames)
+  - Transfers track `_source_diagram_ids` for rename-proof ownership matching
 
 ### v2.1 (Future - Smart Context Detection)
 - Detect if diagrams are in same folder = more likely same context
