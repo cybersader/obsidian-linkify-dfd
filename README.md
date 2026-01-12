@@ -59,6 +59,20 @@ Analysis & Reporting (Dataview, CSV)
 - [Excalidraw Plugin](https://github.com/zsviczian/obsidian-excalidraw-plugin) for Obsidian
 - [Excalidraw Automate](https://github.com/zsviczian/obsidian-excalidraw-plugin) (included with Excalidraw plugin)
 
+#### Excalidraw Plugin Settings (Required for v1.7.6+)
+
+For **stable diagram identity** (rename-proof transfer ownership), configure these settings:
+
+1. **Settings → Excalidraw → Saving → Excalidraw file format**:
+   - Select: **"Excalidraw Markdown (.excalidraw.md)"**
+   - This enables frontmatter storage for diagram UUID
+
+2. **Optional - Auto-convert existing files**:
+   - Settings → Excalidraw → Saving → Auto-convert legacy files: **Enable**
+   - Or manually convert: Command palette → "Excalidraw: Convert to .excalidraw.md"
+
+> **Note**: Pure `.excalidraw` files (JSON format) will still work but cannot store UUIDs. The script falls back to wiki link matching, which breaks if you rename the diagram.
+
 ### Installation
 
 1. **Clone or download this repository**:
@@ -97,7 +111,7 @@ Analysis & Reporting (Dataview, CSV)
 4. **Run the script**:
    - Open diagram in Obsidian
    - Command palette (Ctrl/Cmd+P) → "Excalidraw: Run Excalidraw Automate script"
-   - Select: `Linkify DFD v1.5`
+   - Select: `Linkify DFD v1.7`
    - Wait for completion notice
 
 5. **Verify results**:
@@ -193,7 +207,7 @@ to: "[[analytics-platform]]"
 
 ### Basic Configuration
 
-Edit `Linkify DFD v1.5.md` (lines 21-59):
+Edit `Linkify DFD v1.7.md` (lines 21-59):
 
 ```javascript
 // Debug mode
@@ -241,6 +255,40 @@ data_classification: Restricted
 ```
 
 **Usage in diagram**: Add text to shape: `website=Customer Portal`
+
+### Diagram Identity (v1.7.6+)
+
+Each diagram gets a **stable UUID** that persists through file renames:
+
+```yaml
+# In diagram frontmatter (auto-generated)
+---
+dfd_diagram_id: "a7b2c3d4-e5f6-7890-abcd-ef1234567890"
+---
+```
+
+**Why This Matters**:
+- Transfers track which diagram created them via UUID
+- When you rename a diagram, transfers are still found
+- Without UUID (pure `.excalidraw` files), renaming breaks transfer lookup
+
+**Transfer Tracking**:
+```yaml
+# In transfer frontmatter
+---
+_source_diagrams:
+  - "[[My Diagram]]"           # Human-readable (for inspection)
+_source_diagram_ids:
+  - "a7b2c3d4-e5f6-..."        # Stable UUID (for lookup)
+---
+```
+
+**Lookup Priority**:
+1. UUID match (stable, survives renames)
+2. Wiki link match (fallback for older transfers)
+3. Legacy `source_drawing` field (backward compatibility)
+
+> **Requirement**: Use `.excalidraw.md` format for UUID support. See [Prerequisites](#excalidraw-plugin-settings-required-for-v176).
 
 ---
 
