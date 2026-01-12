@@ -7,7 +7,7 @@ date modified: 2025-11-22T00:00:00-05:00
 /*
 ```js*/
 /*****************************************************************
- * Linkify DFD — v1.7.6  (2026-01-12)
+ * Linkify DFD — v1.7.7  (2026-01-12)
  * ---------------------------------------------------------------
  * COMPATIBILITY:
  *   - Tested with: Excalidraw 2.19.0
@@ -16,9 +16,16 @@ date modified: 2025-11-22T00:00:00-05:00
  * ---------------------------------------------------------------
  * CHANGELOG:
  *
+ * v1.7.7 (2026-01-12)
+ *   - Fixed: UUID detection now checks for Excalidraw frontmatter instead of file extension
+ *           Works with both .excalidraw.md AND .md files (2025 default format)
+ *           Checks for 'excalidraw-plugin' key in frontmatter (standard Excalidraw marker)
+ *   - Benefit: Accidental rename dropping .excalidraw no longer breaks UUID support
+ *   - Note: Pure .excalidraw files (JSON, no frontmatter) still fall back to wiki link matching
+ *
  * v1.7.6 (2026-01-12)
  *   - Added: Stable diagram UUID for rename-proof transfer ownership
- *           Stores dfd_diagram_id in diagram frontmatter (requires .excalidraw.md format)
+ *           Stores dfd_diagram_id in diagram frontmatter (requires Excalidraw frontmatter)
  *           Transfers store _source_diagram_ids array alongside _source_diagrams
  *   - Benefit: When diagram is renamed, transfers still found via UUID match
  *           (Previously, transfers became orphaned when diagram name changed)
@@ -219,7 +226,7 @@ const BIDIRECTIONAL_FROM_TO_BOTH = true;
 // "per_diagram" (default) → Each diagram gets its own transfers (same endpoints = different transfers)
 // "reuse_existing" → Reuse if same endpoints exist (old behavior, for backward compatibility)
 // Note: Explicit "transfer=reuse" marker always allows reuse regardless of this setting
-const TRANSFER_REUSE_MODE = "reuse_existing";
+const TRANSFER_REUSE_MODE = "per_diagram";
 
 // v1.7.4: ORTHOGONAL TRANSFER NAMING SETTINGS
 // These three settings work together to control transfer filename format:
@@ -227,7 +234,7 @@ const TRANSFER_REUSE_MODE = "reuse_existing";
 // 1. Include diagram name in filename?
 // true (default) → transfer_asset-x_to_asset-y_my-diagram.md (clear ownership)
 // false → transfer_asset-x_to_asset-y.md (legacy behavior)
-const TRANSFER_INCLUDE_DIAGRAM = false;
+const TRANSFER_INCLUDE_DIAGRAM = true;
 
 // 2. Position for diagram name and collision suffix
 // "suffix" (default) → _my-diagram or _2 at end of filename
@@ -705,19 +712,21 @@ function generateUUID() {
   });
 }
 
-// v1.7.6: Get or create stable diagram UUID from frontmatter
-// Returns null for .excalidraw files (no frontmatter support)
+// v1.7.7: Get or create stable diagram UUID from frontmatter
+// Returns null for files without Excalidraw frontmatter (pure .excalidraw JSON files)
 async function ensureDiagramUUID(diagramFile) {
-  // Check if file supports frontmatter (.excalidraw.md format)
-  if (!diagramFile.path.endsWith('.excalidraw.md')) {
-    clog(`  ⚠️ Diagram is .excalidraw format - no UUID support. Convert to .excalidraw.md for stable identity.`);
-    return null;
-  }
-
+  // Check if file has Excalidraw frontmatter (works for .excalidraw.md OR .md)
   const cache = app.metadataCache.getFileCache(diagramFile);
   const fm = cache?.frontmatter;
 
-  if (fm?.dfd_diagram_id) {
+  // Must have excalidraw-plugin frontmatter to support UUID
+  if (!fm || !fm['excalidraw-plugin']) {
+    clog(`  ⚠️ No Excalidraw frontmatter found - no UUID support.`);
+    clog(`    Tip: Use .excalidraw.md or .md format with 'excalidraw-plugin' in frontmatter.`);
+    return null;
+  }
+
+  if (fm.dfd_diagram_id) {
     clog(`  🔑 Found existing diagram UUID: ${fm.dfd_diagram_id}`);
     return fm.dfd_diagram_id;
   }
@@ -2432,7 +2441,7 @@ async function ensureTransfer(arr) {
 let diagramUUID = null;
 
 (async () => {
-  clog("\n🚀 Starting Linkify DFD v1.7.6");
+  clog("\n🚀 Starting Linkify DFD v1.7.7");
   clog(`📋 Explicit markers required: ${REQUIRE_EXPLICIT_MARKER}`);
   clog(`📋 Smart custom name matching: ${SMART_CUSTOM_NAME_MATCHING}`);
   clog(`📋 Search all subfolders: ${SEARCH_ALL_SUBFOLDERS}`);
@@ -2448,7 +2457,7 @@ let diagramUUID = null;
   if (diagramUUID) {
     clog(`📋 Diagram UUID: ${diagramUUID}`);
   } else {
-    clog(`📋 Diagram UUID: (not available - .excalidraw format)`);
+    clog(`📋 Diagram UUID: (not available - no Excalidraw frontmatter)`);
   }
 
   // Process nodes first
@@ -2471,8 +2480,8 @@ let diagramUUID = null;
   }
 
   await ea.addElementsToView(false, true, true, true);
-  clog("\n✅ Linkify DFD v1.7.6: finished");
-  note("Linkify DFD v1.7.6: finished");
+  clog("\n✅ Linkify DFD v1.7.7: finished");
+  note("Linkify DFD v1.7.7: finished");
 
   // Flush debug log to file
   await flushDebugLog();
