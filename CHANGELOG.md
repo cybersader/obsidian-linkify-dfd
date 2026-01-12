@@ -300,6 +300,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ~~**Diagram rename handling**~~ → ✅ **Implemented in v1.7.6** via stable UUID
   - Diagrams now have `dfd_diagram_id` in frontmatter (persists through renames)
   - Transfers track `_source_diagram_ids` for rename-proof ownership matching
+- **Transfer filename cleanup on diagram rename**
+  - When diagram renamed, update transfer filename suffixes to match new name
+  - Script setting: `AUTO_RENAME_TRANSFERS` (true/false) - auto-update or leave stale
+  - Plugin UI: Prompt "Diagram renamed. Update 3 transfer filenames to match?"
+  - Keeps filenames consistent with current diagram name (cosmetic but cleaner)
 
 ### v2.1 (Future - Smart Context Detection)
 - Detect if diagrams are in same folder = more likely same context
