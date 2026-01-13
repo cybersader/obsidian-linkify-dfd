@@ -366,6 +366,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### v2.x (Future - Advanced Features)
 
+**Custom Shape Mapping in Object Configuration**:
+- Add `DFD__SHAPE` property to custom object configs
+- Example: `DFD__SHAPE: diamond` → diamonds become this type
+- Combines with existing `DFD__MARKER` for full customization
+- Removes need for two flags (`REQUIRE_EXPLICIT_MARKER` + `AUTO_CLASSIFY_BY_SHAPE`)
+
+**Auto-Styling Elements by Object Type**:
+- Once element is linked to an object type, apply visual styling
+- Colors, stroke width, fill based on asset/entity/transfer type
+- Custom styling per object config
+- Excalidraw API: `element.strokeColor`, `element.backgroundColor`, etc.
+
 **Batch Processing Selected Elements**:
 - Script variant that processes only selected shapes/arrows
 - Use case: Incrementally link parts of a diagram
