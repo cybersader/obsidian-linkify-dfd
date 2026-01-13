@@ -596,33 +596,11 @@ We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ### Roadmap
 
-See [GitHub Projects](https://github.com/yourusername/dfd-system/projects) for planned features.
-
-**Short-term (v1.7-2.0)**:
-- [ ] Configurable schemas from config files
-- [ ] Bulk delete with trash folder
-- [ ] Transfer link cleanup improvements
-- [ ] Validation warnings for unconnected assets
-- [ ] Cross-naming-scheme matching (transition between naming modes)
-
-**Medium-term (v2.x)**:
-- [ ] Bi-directional sync: Database → Diagram updates
-- [ ] CSV import: Generate diagrams from spreadsheets
-- [ ] Bases shape library: Searchable, filterable
-- [ ] Template diagrams for common patterns
-- [ ] Interactive plugin mode with modals for reuse decisions
-
-**Long-term (v3.x+)**:
-- [ ] Real-time collaboration
-- [ ] Risk scoring engine
-- [ ] Compliance framework mapping (NIST, ISO, SOC 2)
-- [ ] AI-assisted diagramming
-
-**Documentation (Planned)**:
-- [ ] Data Flow Diagram Procedure for Data Stewards
-- [ ] Data Flow Discovery Engagement Job Aid
-- [ ] Data Flow Audit Procedure
-- [ ] Implementation guides with examples
+See [CHANGELOG.md → Roadmap](CHANGELOG.md#roadmap) for the detailed roadmap including:
+- v1.7.x remaining improvements
+- v2.0 plugin interactive mode (fuzzy matching, modals)
+- v2.x advanced features (auto-styling, custom shape mapping)
+- Documentation backlog
 
 ---
 
