@@ -330,6 +330,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhancement: Optionally treat bare `[[Name]]` as object name with shape-based type
 - Note: `asset=Name` in Ctrl+K already works and is the recommended approach
 
+**Group Text Edge Cases** (low priority, limited use cases):
+- Group text = text element grouped with a shape (vs bound text typed INTO shape)
+- Current: Falls back to group text if no Ctrl+K link or bound text marker
+- Need: More thorough testing of edge cases (multiple text elements in group, priority order)
+- Defer until more users rely on grouped text workflow
+
 **Diagram Format Normalization** (warning mode for v1.7.x):
 - Warn when diagram extension doesn't match Excalidraw plugin setting
 - Full auto-fix deferred to v2.0
