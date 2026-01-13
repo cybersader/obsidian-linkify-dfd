@@ -325,12 +325,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Uses bound/group text as name (no need for `asset=` prefix)
 - Explicit markers still override when present
 
+**Ctrl+K Link Name Override** (v1.7.10 or v1.8):
+- Setting: `LINK_NAME_OVERRIDES_TEXT` (true/false)
+- When Ctrl+K link is `[[Custom Database]]` (file doesn't exist):
+  - Use "Custom Database" as the object name (overrides visible shape text like "db")
+  - Shape type determines asset/entity classification
+- Current workaround: Use `asset=Custom Database` in Ctrl+K (already works)
+- Use case: Visible diagram text can be abbreviated while link defines full name
+
 **Diagram Format Normalization** (warning mode for v1.7.x):
 - Warn when diagram extension doesn't match Excalidraw plugin setting
 - Full auto-fix deferred to v2.0
 
 ### v2.0 (Future - Plugin Interactive Mode)
 - Modal: "Transfer from X to Y exists. Reuse or create new?"
+- **Fuzzy Auto-Match Modal**: When shape text could match multiple existing objects:
+  - Show modal with potential matches ranked by similarity
+  - User selects the correct match or confirms new creation
+  - Learns from choices to improve future suggestions
+  - Supports partial name matching, aliases, and common abbreviations
 - Settings UI for default behavior
 - Context field: `_context: "Marketing"` to distinguish same-endpoint transfers
 - **Naming scheme migration**: Smart matching when changing settings
