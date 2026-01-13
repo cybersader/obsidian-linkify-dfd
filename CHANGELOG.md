@@ -400,6 +400,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Complexity: High (edge cases with partial selections, arrows to unselected nodes)
 - May need interactive prompts for ambiguous cases
 
+**Transfer Direction Word by Mode**:
+- Differentiate direction word in filenames based on bidirectional mode setting
+- `dual_transfers` mode: Use `tnf` (to aNd from) → `transfer_a_tnf_b_forward.md`, `transfer_a_tnf_b_reverse.md`
+- `single_bidirectional` mode: Use `fot` (from Or to) → `transfer_a_fot_b.md`
+- Unidirectional: Keep `to` → `transfer_a_to_b.md`
+- Clearer semantics: "tnf" = two transfers exist, "fot" = one transfer, bidirectional
+
+**External Process/Role Object Type**:
+- New object type for processes or roles outside your organizational scope
+- Use case: Diagramming handoffs to external teams, vendors, or upstream/downstream processes
+- Potential shape: Diamond (currently falls back to asset)
+- Example marker: `external=Vendor Onboarding Process` or `process=External Review`
+- Distinct from entities (people) - represents workflows/functions, not actors
+- Could have different frontmatter schema and folder (`Processes/` or `External/`)
+
 ### Documentation Backlog
 
 **DFD Schema Recovery Guide**:
