@@ -7,7 +7,7 @@ date modified: 2025-11-22T00:00:00-05:00
 /*
 ```js*/
 /*****************************************************************
- * Linkify DFD — v1.7.8  (2026-01-12)
+ * Linkify DFD — v1.7.9  (2026-01-12)
  * ---------------------------------------------------------------
  * COMPATIBILITY:
  *   - Tested with: Excalidraw 2.19.0
@@ -15,6 +15,15 @@ date modified: 2025-11-22T00:00:00-05:00
  *   - See .claude/research/excalidraw-dependency.md for API changes
  * ---------------------------------------------------------------
  * CHANGELOG:
+ *
+ * v1.7.9 (2026-01-12)
+ *   - Added: AUTO_CLASSIFY_BY_SHAPE setting for marker-free diagramming
+ *           Rectangle/Diamond → Asset (uses bound/group text as name)
+ *           Ellipse/Circle → Entity (uses bound/group text as name)
+ *           Arrow → Transfer
+ *   - Benefit: No more typing "asset=" or "entity=" prefixes
+ *   - Requirement: REQUIRE_EXPLICIT_MARKER must be false
+ *   - Note: Explicit markers still override shape-based classification when present
  *
  * v1.7.8 (2026-01-12)
  *   - Added: Assets and entities now store source_diagram_ids (UUID) alongside source_drawings
@@ -197,7 +206,16 @@ date modified: 2025-11-22T00:00:00-05:00
 
 /************* USER SETTINGS ************************************/
 const DEBUG = true;
-const REQUIRE_EXPLICIT_MARKER = true;  // Only link elements with explicit markers
+const REQUIRE_EXPLICIT_MARKER = false;  // Only link elements with explicit markers
+
+// v1.7.9: SHAPE-BASED AUTO-CLASSIFICATION
+// When true, classify elements by shape type without requiring markers:
+//   - Rectangle/Diamond → Asset (use bound text as name)
+//   - Ellipse/Circle → Entity (use bound text as name)
+//   - Arrow → Transfer
+// Explicit markers (asset=, entity=, transfer) still override when present
+// Note: Requires REQUIRE_EXPLICIT_MARKER = false to take effect
+const AUTO_CLASSIFY_BY_SHAPE = true;
 
 // SMART MATCHING
 const SMART_CUSTOM_NAME_MATCHING = true;   // If true, "asset=Customer DB" tries to find existing "Customer DB.md" first
@@ -1248,11 +1266,39 @@ function classifyElement(el) {
 
   // Fallback only if not requiring explicit markers
   if (!REQUIRE_EXPLICIT_MARKER) {
+    // v1.7.9: Shape-based auto-classification
+    // When enabled, use bound/group text as customName and classify by shape type
+    let inferredName = null;
+    if (AUTO_CLASSIFY_BY_SHAPE) {
+      // Try to get name from bound text (text typed directly into shape)
+      if (boundTextEl && boundTextEl.text) {
+        inferredName = boundTextEl.text.trim();
+      }
+      // Fall back to group text if no bound text
+      if (!inferredName && groupText) {
+        inferredName = groupText.trim();
+      }
+      clog(`  Shape-based classification: shape=${el.type}, inferredName="${inferredName || "(none)"}"`);
+    }
+
     if (el.type === "arrow") {
       clog(`  ✓ Fallback: arrow → transfer`);
       return { kind: "transfer", customName: null };
     }
+
+    // v1.7.9: Ellipse/circle → entity (when AUTO_CLASSIFY_BY_SHAPE is true)
+    if (AUTO_CLASSIFY_BY_SHAPE && el.type === "ellipse") {
+      clog(`  ✓ Shape-based: ellipse → entity${inferredName ? ` (name: "${inferredName}")` : ""}`);
+      return { kind: "entity", customName: inferredName };
+    }
+
+    // Rectangle, diamond, image, frame → asset
+    // Also ellipse when AUTO_CLASSIFY_BY_SHAPE is false (original behavior)
     if (["rectangle", "ellipse", "diamond", "image", "frame"].includes(el.type)) {
+      if (AUTO_CLASSIFY_BY_SHAPE) {
+        clog(`  ✓ Shape-based: ${el.type} → asset${inferredName ? ` (name: "${inferredName}")` : ""}`);
+        return { kind: "asset", customName: inferredName };
+      }
       clog(`  ✓ Fallback: ${el.type} → asset`);
       return { kind: "asset", customName: null };
     }
