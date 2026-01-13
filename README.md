@@ -32,6 +32,8 @@ Analysis & Reporting (Dataview, CSV)
 
 - ✅ **Graph-Based Model**: Assets, entities, and transfers as nodes and edges
 - ✅ **Smart Matching**: Reuses existing pages instead of creating duplicates
+- ✅ **Shape-Based Classification** (v1.7.9): Rectangle→Asset, Ellipse→Entity - no markers needed
+- ✅ **Stable UUIDs** (v1.7.6+): Rename-proof diagram identity tracking
 - ✅ **Bidirectional Support**: Single transfer or dual transfer modes for ↔ arrows
 - ✅ **Transfer Numbering**: Multiple transfers between same objects (prefix/suffix/random modes)
 - ✅ **Configuration System**: Define custom object types, markers, and defaults
@@ -228,6 +230,7 @@ const DEBUG = true;                              // Enable logging
 
 // Element processing
 const REQUIRE_EXPLICIT_MARKER = true;            // Only process marked elements
+const AUTO_CLASSIFY_BY_SHAPE = false;            // v1.7.9: Shape-based classification
 
 // Smart matching
 const SMART_CUSTOM_NAME_MATCHING = true;         // Reuse existing pages
@@ -244,6 +247,30 @@ const TRANSFER_NUMBERING_MODE = "prefix";        // "prefix" | "suffix" | "rando
 const DIRECTION_DETERMINATION = "arrowhead_priority";  // Use arrowheads first
 const BIDIRECTIONAL_MODE = "single_bidirectional";     // How to handle ↔ arrows
 ```
+
+#### Shape-Based Classification (v1.7.9)
+
+Enable marker-free diagramming by classifying elements based on shape type:
+
+```javascript
+const REQUIRE_EXPLICIT_MARKER = false;  // Required
+const AUTO_CLASSIFY_BY_SHAPE = true;    // Enable shape-based classification
+```
+
+| Shape | Object Type | Notes |
+|-------|-------------|-------|
+| Rectangle | Asset | Standard DFD process/data store |
+| Ellipse | Entity | Standard DFD external entity |
+| Diamond | Asset | Fallback for non-standard shapes |
+| Arrow | Transfer | Data flow between objects |
+
+**Workflow with shape-based classification**:
+1. Draw shapes (no need to type `asset=` or `entity=`)
+2. Add descriptive text inside shapes (becomes the object name)
+3. Connect with arrows
+4. Run Linkify DFD
+
+Explicit markers (`asset=`, `entity=`, `transfer`) still override shape-based classification when present.
 
 ### Custom Object Types
 
@@ -601,17 +628,25 @@ See [GitHub Projects](https://github.com/yourusername/dfd-system/projects) for p
 
 ## Version History
 
-- **v1.6.2** (2026-01-06): Multiline marker text normalization fix
-- **v1.6.1**: Bound text duplication fix, improved unbound arrow error messages
-- **v1.6.0**: Stale transfer detection, auto-rename when endpoints change
-- **v1.5.6**: Bidirectional-to-unidirectional conversion fixes
-- **v1.5.5**: Endpoint change detection, dfd_in/dfd_out cleanup
-- **v1.5.0** (2025-11-22): Transfer numbering modes, bound text support
-- **v1.4**: Explicit markers, smart custom name matching, existing link preservation
-- **v1.3.1**: Configuration system, custom object types
+### v1.7.x Series (2026-01-09 - 2026-01-12)
+- **v1.7.9**: Shape-based auto-classification (no markers needed)
+- **v1.7.8**: UUID support for assets/entities (`source_diagram_ids`)
+- **v1.7.7**: Frontmatter-based Excalidraw detection (works with `.md` and `.excalidraw.md`)
+- **v1.7.6**: Stable diagram UUID for rename-proof transfer ownership
+- **v1.7.5**: Fuzzy matching for naming scheme transitions
+- **v1.7.4**: Orthogonal transfer naming settings
+- **v1.7.3**: Diagram name in transfer filenames, stale link detection
+- **v1.7.2**: Per-diagram transfer isolation (breaking: new default)
+- **v1.7.1**: Multi-diagram tracking for transfers
+- **v1.7.0**: Orphan detection for bidirectional→unidirectional conversion
+
+### Earlier Versions
+- **v1.6.x**: Stale transfer detection, bound text fixes, multiline normalization
+- **v1.5.x**: Transfer numbering modes, endpoint change detection
+- **v1.4**: Explicit markers, smart matching
 - **v1.0**: Initial release
 
-**Helper Scripts** (v1.7 - 2026-01-06):
+**Helper Scripts** (v1.7):
 - Mark All Arrows, Clear All DFD Links, Validate DFD Diagram
 
 See [CHANGELOG.md](CHANGELOG.md) for detailed version history.
