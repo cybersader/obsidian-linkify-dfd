@@ -5,6 +5,21 @@ All notable changes to the DFD-Excalidraw-System project will be documented in t
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.9] - 2026-01-12
+
+### Added
+- **Shape-based auto-classification** (`AUTO_CLASSIFY_BY_SHAPE` setting)
+  - When enabled, classify elements by shape type without requiring markers:
+    - Rectangle/Diamond → Asset (uses bound/group text as name)
+    - Ellipse/Circle → Entity (uses bound/group text as name)
+    - Arrow → Transfer
+  - Explicit markers (`asset=`, `entity=`, `transfer`) still override when present
+  - Requires `REQUIRE_EXPLICIT_MARKER = false` to take effect
+
+### Changed
+- Faster diagramming workflow: no need to type `asset=` or `entity=` prefixes
+- Shape semantics: ellipses now become entities (not assets) when auto-classify is on
+
 ## [1.7.8] - 2026-01-12
 
 ### Added
@@ -303,14 +318,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### v1.7.x (Remaining Script Improvements)
 
-**Shape-Based Auto-Classification** (user request):
+~~**Shape-Based Auto-Classification**~~ → ✅ **Implemented in v1.7.9**
 - Setting: `AUTO_CLASSIFY_BY_SHAPE` (true/false)
-- When enabled, skip explicit markers - classify by shape type:
-  - Rectangle → Asset
-  - Circle/Ellipse → Entity
-  - Arrow → Transfer
-- Still honor explicit markers when present (override)
-- Benefit: Faster diagramming, less typing `asset=` and `entity=`
+- Requires `REQUIRE_EXPLICIT_MARKER = false`
+- Rectangle/Diamond → Asset, Ellipse/Circle → Entity, Arrow → Transfer
+- Uses bound/group text as name (no need for `asset=` prefix)
+- Explicit markers still override when present
 
 **Diagram Format Normalization** (warning mode for v1.7.x):
 - Warn when diagram extension doesn't match Excalidraw plugin setting
